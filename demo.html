@@ -1,0 +1,2513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10160f">
+  <title>Scanva &mdash; Live demo</title>
+  <!-- Phone vs. tablet/desktop is decided from the DEVICE's actual screen
+       size (window.screen), not the page's reported viewport width — Apps
+       Script's web-app hosting can make the layout viewport misreport
+       itself on some phones, which used to make phones incorrectly get the
+       desktop layout. screen.width/height are a hardware property the page
+       can't get confused about, so this is reliable regardless of that.
+       Runs before any CSS so there's no flash of the wrong size. Also
+       reacts to window.innerWidth so narrowing an actual desktop browser
+       window still switches to the compact layout, without ever letting a
+       real phone (small screen) be fooled into desktop mode. -->
+  <script>
+    (function () {
+      function applyDeviceClass() {
+        var shortSide = Math.min(window.screen.width, window.screen.height);
+        var isWide = shortSide > 700 && window.innerWidth > 700;
+        document.documentElement.classList.toggle('is-wide', isWide);
+        document.documentElement.classList.toggle('is-phone', !isWide);
+      }
+      applyDeviceClass();
+      window.addEventListener('resize', applyDeviceClass);
+      window.addEventListener('orientationchange', applyDeviceClass);
+    })();
+  </script>
+  <!-- Favicon: a simple orienteering-control-point mark in the app's accent
+       color, as an inline SVG data URI (no separate image file needed).
+       Swap the
+       href below for a data:image/png;base64,... URI made from it, if you want
+       a different icon. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%23ff8a3d' stroke-width='2.6'/%3E%3Ccircle cx='12' cy='12' r='3.6' fill='%23ff8a3d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --bg: #10160f;
+      --card: #1a231a;
+      --card-2: #232c21;
+      --line: #34402f;
+      --text: #e7ead9;
+      --text-dim: #a7b39c;
+      --accent: #ff8a3d;
+      --accent-dim: #ff8a3d33;
+      --good: #7fd18c;
+      --bad: #e08a7d;
+      --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      --shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.3);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+      height: 100%;
+    }
+    /* The orienteering-map pattern lives on body (not html) so it's visible
+       in the side margins on tablet/desktop, around the centered app-shell —
+       on a phone the app-shell fills the whole width so it's invisible
+       there, same as before. */
+    body {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill='none' stroke='%23c8a878' stroke-width='1.1' opacity='0.4'%3E%3Cpath d='M0 40 Q 55 10 110 40 T 220 40'/%3E%3Cpath d='M0 80 Q 55 50 110 80 T 220 80'/%3E%3Cpath d='M0 120 Q 55 90 110 120 T 220 120'/%3E%3Cpath d='M0 160 Q 55 130 110 160 T 220 160'/%3E%3Cpath d='M0 200 Q 55 170 110 200 T 220 200'/%3E%3Ccircle cx='185' cy='25' r='5' fill='%23c8a878' opacity='0.5'/%3E%3Ccircle cx='30' cy='150' r='5' fill='%23c8a878' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");
+      background-repeat: repeat;
+      display: flex; justify-content: center;
+      height: 100dvh; height: 100vh;
+      overflow: hidden; /* each tab-page scrolls itself, not the body */
+    }
+    /* Everything the app actually shows lives in this shell, capped to a
+       comfortable phone/tablet column width and centered on wider screens
+       (desktop browser windows) instead of stretching edge-to-edge. */
+    .app-shell {
+      width: 100%; max-width: 560px; height: 100%;
+      position: relative; background: var(--bg); overflow: hidden;
+    }
+    /* On phone there is no cap at all — some hosts (this one included, via
+       Apps Script's own page wrapper) can report a wider usable width than
+       the device's real screen, and a 560px cap there would leave empty
+       margins down the sides instead of the app filling the screen edge to
+       edge. Sizing off screen.width for the phone/wide split (above) but
+       removing the cap entirely for phone (rather than raising the number)
+       is what actually guarantees edge-to-edge fill whatever width gets
+       reported. */
+    html.is-phone .app-shell { max-width: none; }
+    html.is-wide .app-shell {
+      max-width: 760px; /* a wider box on tablet/desktop */
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px var(--line);
+    }
+    html.is-wide body { padding: 28px 0; }
+
+    /* Everything the app shows lives in here, uniformly scaled by
+       --ui-scale — bigger on phone, smaller on tablet/desktop — via a
+       width/height-compensated transform: this scales literally everything
+       (text, padding, icons, even inline-SVG size attributes that plain
+       CSS/rem sizing can't reach) by the same factor with a single rule,
+       rather than needing every size value in this stylesheet touched
+       individually. The transform also gives position:fixed children (tab
+       bar, +-button, modal sheet, toast) a containing block scoped to this
+       box instead of the real browser window, so they scale and stay
+       aligned with the app column instead of pinning to the true viewport
+       edges on wide screens. */
+    :root { --ui-scale: 1; }
+    html.is-phone { --ui-scale: 1.22; }
+    html.is-wide { --ui-scale: 0.82; }
+    .app-scale {
+      width: calc(100% / var(--ui-scale)); height: calc(100% / var(--ui-scale));
+      transform: scale(var(--ui-scale)); transform-origin: top left;
+      display: flex; flex-direction: column;
+    }
+
+    /* header */
+    .header-bg {
+      background: linear-gradient(180deg, var(--card) 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--line);
+      flex: none;
+    }
+    .header { padding: 16px 16px 14px; display: flex; align-items: center; gap: 12px; }
+    .avatar, .avatar-fallback {
+      width: 76px; height: 76px; border-radius: 50%; flex: none;
+      object-fit: cover; box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--accent), var(--shadow-sm);
+    }
+    .avatar-wrap { position: relative; flex: none; cursor: pointer; border: none; background: none; padding: 0; font: inherit; }
+    .avatar-fallback {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent-dim); font-size: 32px;
+    }
+    .avatar-edit-badge {
+      position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; box-shadow: 0 0 0 2px var(--bg);
+    }
+    /* profile edit sheet */
+    .profile-pic-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .profile-pic-preview {
+      width: 72px; height: 72px; border-radius: 50%; flex: none; overflow: hidden;
+      box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--line);
+    }
+    .profile-pic-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .profile-pic-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+    .profile-pic-actions .btn { width: 100%; }
+    /* min-width:0 so a long name shrinks/wraps inside its column instead of
+       pushing the refresh button off the edge on a narrow phone */
+    .header-name { flex: 1; min-width: 0; cursor: pointer; border: none; background: none; text-align: left; padding: 0; font: inherit; display: block; }
+    .header h1 { font-size: 30px; margin: 0 0 4px; overflow-wrap: break-word; }
+    .header .sub {
+      color: var(--text-dim); font-size: 19px; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .refresh-btn {
+      margin-left: auto; width: 50px; height: 50px; border-radius: 50%;
+      background: var(--card); border: 1px solid var(--line); color: var(--text-dim);
+      display: flex; align-items: center; justify-content: center; flex: none;
+      transition: transform 0.15s ease; box-shadow: var(--shadow-sm);
+    }
+
+    /* brand mark */
+    .brandbar {
+      display: flex; align-items: center; gap: 13px; padding: 16px 16px 2px;
+    }
+    .brand-mark { transform: rotate(-90deg); flex: none; }
+    .brand-word {
+      font-family: 'Oswald', -apple-system, sans-serif; font-style: italic; font-weight: 700;
+      font-size: 40px; letter-spacing: 0.02em; color: var(--accent); text-transform: uppercase;
+      transform: skewX(-6deg); display: inline-block;
+    }
+    .refresh-btn:active { transform: scale(0.9); }
+    .refresh-btn.spin svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* tab content area: fills remaining height, each page scrolls itself */
+    .tab-content { flex: 1; min-height: 0; position: relative; }
+    .tab-page-scroll {
+      position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 14px 16px calc(40px + env(safe-area-inset-bottom));
+    }
+
+    /* stat tiles */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 10px; box-shadow: var(--shadow-sm); }
+    .stat .label { color: var(--text-dim); font-size: 14px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .stat .value { font-size: 32px; font-weight: 700; margin-top: 5px; }
+    .stat .delta { font-size: 14px; margin-top: 5px; display: flex; align-items: center; gap: 3px; }
+    .delta.up { color: var(--good); }
+    .delta.down { color: var(--bad); }
+    .delta.flat { color: var(--text-dim); }
+
+    /* Ai tab lock (shareable build only) — the tab stays visible so people
+       can see what it offers, but its content is blurred and inert behind a
+       fixed centered "upgrade" card. Fixed (not absolute) so it stays put
+       regardless of how tall the blurred content behind it scrolls. */
+    .ai-lock-content { filter: blur(5px); pointer-events: none; user-select: none; }
+    .ai-lock-overlay {
+      position: fixed; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+      max-width: 340px; margin: 0 auto; z-index: 20;
+      background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+      padding: 22px 20px; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    }
+    .ai-lock-badge { font-size: 30px; margin-bottom: 8px; }
+    .ai-lock-title { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .ai-lock-sub { font-size: 13.5px; color: var(--text-dim); line-height: 1.4; }
+    html.is-phone #tab-ai .ai-lock-title { font-size: 20px; }
+    html.is-phone #tab-ai .ai-lock-sub { font-size: 16px; }
+
+    /* AI-rekommendation */
+    .ai-tip-card {
+      background: linear-gradient(135deg, var(--accent-dim), var(--card) 60%);
+      border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
+      box-shadow: var(--shadow); margin-bottom: 12px;
+    }
+    .ai-tip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .ai-tip-icon { font-size: 19px; line-height: 1; }
+    .ai-tip-head .title { font-size: 17px; font-weight: 700; color: var(--text); flex: 1; }
+    .ai-tip-refresh {
+      border: none; background: transparent; color: var(--accent); font-family: inherit;
+      font-weight: 700; font-size: 14px; padding: 4px 6px;
+    }
+    .ai-tip-refresh:disabled { opacity: 0.5; }
+    .ai-tip-body { font-size: 16.5px; color: var(--text); line-height: 1.45; }
+    .ai-tip-body.dim { color: var(--text-dim); font-size: 15px; }
+
+    .ai-week-card { margin-bottom: 12px; }
+    .ai-week-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .ai-week-row {
+      display: flex; align-items: center; gap: 10px; background: var(--card);
+      border-radius: 10px; padding: 8px 10px; border-left: 4px solid var(--line);
+    }
+    .ai-week-row .awr-day { flex: none; width: 40px; font-weight: 700; font-size: 14.5px; color: var(--text-dim); }
+    .ai-week-row .awr-focus { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 600; }
+    .ai-week-row .awr-why { font-size: 13.5px; color: var(--text-dim); margin-top: 1px; }
+    .ai-chat { border-top: 1px solid var(--line); padding-top: 10px; }
+    .ai-chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; margin-bottom: 8px; }
+    .ai-chat-msg { font-size: 15px; line-height: 1.4; padding: 8px 11px; border-radius: 12px; max-width: 92%; }
+    .ai-chat-msg.q { align-self: flex-end; background: var(--accent); color: #fff; }
+    .ai-chat-msg.a { align-self: flex-start; background: var(--card); color: var(--text); }
+    .ai-chat-input-row { display: flex; gap: 8px; }
+    .ai-chat-input {
+      flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 20px; padding: 10px 14px;
+      font-family: inherit; font-size: 15px; background: var(--card);
+    }
+    .ai-chat-send {
+      flex: none; border: none; background: var(--accent); color: #fff; font-family: inherit;
+      font-weight: 700; font-size: 14.5px; padding: 0 16px; border-radius: 20px;
+    }
+    .ai-chat-send:disabled { opacity: 0.5; }
+
+    /* Ai-tab text, quite a lot bigger specifically on phone (on top of the
+       general --ui-scale boost every tab already gets there) since this tab
+       is mostly reading, not compact tiles like the other tabs. */
+    html.is-phone #tab-ai .ai-tip-head .title { font-size: 21px; }
+    html.is-phone #tab-ai .ai-tip-icon { font-size: 23px; }
+    html.is-phone #tab-ai .ai-tip-body { font-size: 20px; }
+    html.is-phone #tab-ai .ai-tip-body.dim { font-size: 18px; }
+    html.is-phone #tab-ai .ai-week-row .awr-day { font-size: 18px; width: 48px; }
+    html.is-phone #tab-ai .ai-week-row .awr-focus { font-size: 19px; }
+    html.is-phone #tab-ai .ai-week-row .awr-why { font-size: 17px; }
+    html.is-phone #tab-ai .ai-chat-msg { font-size: 18.5px; }
+    html.is-phone #tab-ai .ai-chat-input { font-size: 18px; }
+    html.is-phone #tab-ai .ai-chat-send { font-size: 17px; }
+
+    /* training-load gauge + 3/5/10K goal-time badges — same white-circle /
+       colored-ring / compact-label language as the Month overview badges,
+       reused here on the Ai tab. */
+    .ai-load-card, .ai-goals-card { margin-bottom: 12px; }
+    .load-row { display: flex; align-items: center; gap: 16px; }
+    .load-circle-wrap { position: relative; width: 84px; height: 84px; flex: none; }
+    .load-circle {
+      width: 100%; height: 100%; border-radius: 50%; background: var(--card);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 3.5px var(--ring, var(--line));
+    }
+    .load-circle .lc-pct { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1; }
+    .load-circle .lc-label { font-size: 9.5px; font-weight: 700; color: var(--text-dim); margin-top: 2px; }
+    .load-info { flex: 1; min-width: 0; }
+    .load-info .li-desc { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+    .load-info .li-detail { font-size: 13.5px; color: var(--text-dim); }
+    .load-empty, .goals-empty { font-size: 15px; color: var(--text-dim); }
+
+    .goals-head-row { display: flex; align-items: center; gap: 8px; }
+    .goals-row { display: flex; gap: 10px; justify-content: space-between; margin-top: 4px; }
+    .goal-tile {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+      cursor: pointer; background: none; border: none; font-family: inherit; padding: 4px 2px;
+    }
+    .goal-tile .goal-circle {
+      width: 64px; height: 64px; border-radius: 50%; background: var(--card);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.32), inset 0 0 0 2.5px var(--ring, var(--line));
+    }
+    .goal-tile .gc-time { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.15; }
+    .goal-tile .gc-pace { font-size: 9px; font-weight: 700; color: var(--text-dim); margin-top: 1px; }
+    .goal-tile .gc-empty { font-size: 21px; font-weight: 700; color: var(--text-dim); }
+    .goal-tile .goal-tile-label { font-size: 12.5px; font-weight: 700; color: var(--text-dim); }
+
+    html.is-phone #tab-ai .load-circle-wrap { width: 96px; height: 96px; }
+    html.is-phone #tab-ai .load-circle .lc-pct { font-size: 24px; }
+    html.is-phone #tab-ai .load-circle .lc-label { font-size: 11px; }
+    html.is-phone #tab-ai .load-info .li-desc { font-size: 18px; }
+    html.is-phone #tab-ai .load-info .li-detail { font-size: 16px; }
+    html.is-phone #tab-ai .load-empty, html.is-phone #tab-ai .goals-empty { font-size: 18px; }
+    html.is-phone #tab-ai .goal-tile .goal-circle { width: 76px; height: 76px; }
+    html.is-phone #tab-ai .goal-tile .gc-time { font-size: 17px; }
+    html.is-phone #tab-ai .goal-tile .gc-pace { font-size: 11px; }
+    html.is-phone #tab-ai .goal-tile .gc-empty { font-size: 24px; }
+    html.is-phone #tab-ai .goal-tile .goal-tile-label { font-size: 14.5px; }
+
+    /* chart card */
+    .chart-card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 16px; padding: 14px 14px 10px; box-shadow: var(--shadow); margin-bottom: 12px;
+    }
+    .chart-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+    .chart-card .title { font-size: 20px; color: var(--text); font-weight: 700; }
+    .toggle-group { display: flex; background: var(--card-2); border-radius: 20px; padding: 2px; flex: none; }
+    .toggle-group button {
+      border: none; background: transparent; color: var(--text-dim); font-size: 15.5px;
+      font-weight: 600; padding: 8px 17px; border-radius: 18px; font-family: inherit;
+    }
+    .toggle-group button.active { background: var(--accent); color: #fff; }
+    .chart-card .big-label { font-size: 13.5px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+    .chart-card .big { font-size: 34px; font-weight: 700; margin-bottom: 10px; }
+    .chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .chart-scroll::-webkit-scrollbar { display: none; }
+    .chart-inner { min-width: 100%; }
+    .week-labels { display: flex; font-size: 15px; color: var(--text-dim); padding: 4px 2px 2px; }
+    .week-labels span { flex: none; text-align: center; }
+    .week-labels span.sel { color: var(--accent); font-weight: 700; }
+    .chart-card svg rect[data-hit-week] { cursor: pointer; }
+    .scroll-hint { font-size: 14px; color: var(--text-dim); text-align: center; margin-top: 5px; opacity: 0.7; }
+
+    /* 7-day bar chart */
+    .bars-row { display: flex; align-items: flex-end; gap: 9px; height: 180px; padding: 6px 2px 0; }
+    .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 7px; }
+    .bar-val { font-size: 15px; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+    .bar { width: 62%; border-radius: 6px 6px 3px 3px; min-height: 4px; }
+    .bar-day { font-size: 16px; color: var(--text-dim); margin-top: 5px; }
+    .bar-day.today { color: var(--accent); font-weight: 700; }
+
+    /* month calendar */
+    .month-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
+    .month-scroll::-webkit-scrollbar { display: none; }
+    .month-track { display: flex; }
+    .month-grid { flex: none; width: 100%; scroll-snap-align: start; padding-right: 4px; }
+    .month-name { font-size: 20px; font-weight: 700; margin-bottom: 11px; }
+    .month-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+    .month-weekdays span { font-size: 13.5px; color: var(--text-dim); text-align: center; text-transform: uppercase; }
+    .month-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px 4px; }
+    .month-day {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 17px; color: var(--text-dim); position: relative;
+    }
+    .month-day.empty { visibility: hidden; }
+    .month-day.has-activity { cursor: pointer; }
+    /* No-activity / future days: a plain outlined circle with the day number — same footprint as an activity circle so the grid stays aligned. */
+    .month-day .daynum-big {
+      width: 76%; aspect-ratio: 1; max-width: 38px; border-radius: 50%; border: 1.5px solid var(--line);
+      display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+    }
+    /* Activity days: a white circular badge (closer to how Strava's own training calendar draws a day) with the
+       activity-type icon inside and a ring in the day's difficulty color, plus a compact km/time label underneath. */
+    .month-day .day-circle-wrap { position: relative; width: 76%; max-width: 38px; }
+    .month-day .day-circle {
+      width: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.32), inset 0 0 0 2.25px var(--ring, var(--line));
+    }
+    .month-day .day-circle svg { width: 62%; height: 62%; }
+    .month-day.has-activity .daynum-corner {
+      position: absolute; top: -3px; left: -4px; font-size: 10px; font-weight: 700; color: var(--text-dim);
+      background: var(--bg); border-radius: 6px; padding: 0 2px; line-height: 1.3;
+    }
+    .month-day .multi-badge {
+      position: absolute; top: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%;
+      background: var(--card); box-shadow: 0 0 0 2px var(--bg), 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .month-day .day-meta { font-size: 10.5px; font-weight: 700; color: var(--text-dim); white-space: nowrap; line-height: 1; }
+    .month-day.today-cell .daynum-big { border-color: var(--accent); border-width: 2px; }
+    .month-day.today-cell .day-circle {
+      box-shadow: 0 2px 5px rgba(0,0,0,0.32), inset 0 0 0 2.25px var(--ring, var(--line)), 0 0 0 2.25px var(--accent);
+    }
+
+    /* section */
+    .section-title {
+      padding: 2px 2px 12px; font-size: 18.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title .count-pill {
+      background: var(--card-2); color: var(--text-dim); font-size: 15px; font-weight: 700;
+      padding: 2px 11px; border-radius: 10px;
+    }
+
+    /* activity list */
+    .activities { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+    .week-group { display: flex; flex-direction: column; }
+    .week-group-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+      padding: 18px 3px 11px; border-top: 1px solid var(--line); margin-top: 6px;
+    }
+    .week-group:first-child .week-group-head { border-top: none; margin-top: 0; padding-top: 2px; }
+    .wg-title { font-size: 16.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-dim); }
+    .wg-stats { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .activity-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 15px 15px; display: flex; gap: 13px; align-items: flex-start; cursor: pointer;
+      border-left: 4px solid var(--line); position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.12s ease;
+    }
+    .activity-card:active { background: var(--card-2); transform: scale(0.985); }
+    .activity-card.planned-card { border-left-style: dashed; }
+    .date-badge { flex: none; width: 50px; text-align: center; padding-top: 2px; }
+    .date-badge .d { font-size: 28px; font-weight: 700; line-height: 1.1; }
+    .date-badge .m { font-size: 14.5px; color: var(--text-dim); text-transform: uppercase; }
+    .activity-body { flex: 1; min-width: 0; }
+    .activity-main { display: flex; align-items: flex-start; gap: 12px; width: 100%; }
+    .activity-text { flex: 1; min-width: 0; }
+    .activity-body .top-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .diff-dot { width: 13px; height: 13px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset; }
+    .type-emoji { display: inline-flex; line-height: 1; }
+    .activity-body .pass-name { font-weight: 600; font-size: 21px; }
+    .activity-body .day-name { font-size: 15px; color: var(--text-dim); margin-left: auto; flex: none; }
+    .activity-body .kommentar {
+      font-size: 16.5px; color: var(--text-dim); margin-top: 4px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .chip-row { display: flex; gap: 17px; margin-top: 9px; flex-wrap: wrap; }
+    .chip { font-size: 16px; color: var(--text-dim); display: flex; gap: 4px; align-items: center; }
+    .pass2-tag {
+      display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; font-size: 14px; color: var(--accent);
+      background: var(--accent-dim); padding: 4px 10px 4px 8px; border-radius: 20px;
+    }
+    .planned-tag {
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--accent); background: var(--accent-dim); padding: 3px 10px; border-radius: 10px; margin-left: auto;
+    }
+    .empty-state, .loading-state { text-align: center; color: var(--text-dim); padding: 34px 14px; font-size: 16px; }
+    .route-spark { flex: none; width: 68px; height: 68px; border-radius: 10px; overflow: hidden; background: var(--card-2); }
+    .route-spark svg { display: block; width: 100%; height: 100%; }
+
+    /* Strava import */
+    .strava-btn {
+      width: 100%; background: #fc4c0224; border: 1px solid #fc4c024f; color: #ff8a5e;
+      border-radius: 10px; padding: 12px 14px; font-family: inherit; font-weight: 700; font-size: 15px;
+      display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 10px;
+    }
+    .strava-btn:active { background: #fc4c023a; }
+    .strava-linked {
+      display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #ff8a5e; font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .strava-linked .unlink-btn {
+      margin-left: auto; background: none; border: none; color: var(--text-dim); font-family: inherit;
+      font-size: 13px; font-weight: 600; text-decoration: underline;
+    }
+    .strava-map { height: 170px; border-radius: 12px; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--line); }
+    .strava-picker { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .strava-pick-card {
+      text-align: left; background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; font-family: inherit; width: 100%;
+    }
+    .strava-pick-card .sp-name { font-weight: 700; font-size: 15px; }
+    .strava-pick-card .sp-meta { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .strava-cancel { text-align: center; background: none; border: none; color: var(--text-dim); font-family: inherit; font-size: 13.5px; text-decoration: underline; width: 100%; padding: 6px 0 10px; }
+
+    /* FAB */
+    .fab {
+      position: fixed; right: 18px; bottom: calc(142px + env(safe-area-inset-bottom));
+      width: 72px; height: 72px; border-radius: 50%; border: none;
+      background: linear-gradient(145deg, var(--accent), #ff7a3d); color: #fff;
+      font-size: 36px; line-height: 1; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px #ff8a3d55; z-index: 15; transition: transform 0.15s ease;
+    }
+    .fab:active { transform: scale(0.92); }
+    .fab.hidden { display: none; }
+
+    /* bottom tab bar */
+    .tabbar {
+      flex: none; z-index: 16;
+      background: rgba(16,22,15,0.88); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border-top: 1px solid var(--line);
+      display: flex; padding: 14px 6px calc(26px + env(safe-area-inset-bottom));
+    }
+    .tab-btn {
+      flex: 1; min-width: 0; background: none; border: none; color: var(--text-dim); font-family: inherit;
+      display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 4px 2px; font-size: 13px;
+      font-weight: 600; position: relative; white-space: nowrap;
+    }
+    .tab-btn.active { color: var(--accent); }
+    .tab-btn svg { display: block; }
+    html.is-wide .tab-btn svg { width: 38px; height: 38px; } /* a touch smaller on tablet/desktop */
+    .tab-btn .tab-badge {
+      position: absolute; top: -6px; right: calc(50% - 36px); min-width: 23px; height: 23px; padding: 0 6px;
+      border-radius: 12px; background: var(--accent); color: #fff; font-size: 13.5px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bg);
+    }
+
+    /* modal */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none;
+      align-items: flex-end; z-index: 20;
+    }
+    .overlay.show { display: flex; }
+    .sheet {
+      background: var(--card); width: 100%; max-height: 90vh; overflow-y: auto;
+      border-radius: 20px 20px 0 0; padding: 18px 18px calc(34px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--line); box-shadow: 0 -10px 30px rgba(0,0,0,0.4);
+    }
+    .sheet-handle { width: 36px; height: 4px; background: var(--line); border-radius: 4px; margin: 0 auto 14px; }
+    .sheet h2 { font-size: 22px; margin: 0 0 3px; }
+    .sheet .sheet-sub { font-size: 15px; color: var(--text-dim); margin-bottom: 16px; }
+    .field-group { margin-bottom: 14px; }
+    .field-group .fg-label {
+      font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
+      margin-bottom: 7px; display: flex; align-items: center; gap: 8px;
+    }
+    input.f-input, textarea.f-input {
+      width: 100%; background: var(--card-2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 12px 14px; font-size: 17px; font-family: inherit;
+      resize: vertical;
+    }
+    textarea.f-input { min-height: 60px; line-height: 1.4; }
+    input.f-input:focus, textarea.f-input:focus { outline: none; border-color: var(--accent); }
+    .row-2 { display: flex; gap: 10px; }
+    .row-2 .field-group { flex: 1; }
+    .pace-hint { font-size: 13.5px; color: var(--text-dim); margin: -8px 0 12px; min-height: 1em; }
+    .pass-block { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 2px; }
+    .pass-block-title { font-size: 17px; font-weight: 600; margin-bottom: 11px; }
+    .swatch-row { display: flex; gap: 13px; flex-wrap: wrap; }
+    .swatch {
+      width: 46px; height: 46px; border-radius: 50%; border: 2px solid transparent;
+      display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .swatch.selected { border-color: var(--text); }
+    .swatch.selected::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: rgba(0,0,0,0.4); }
+    .swatch-none { border: 1px solid var(--line); }
+    .swatch-label { font-size: 13px; color: var(--text-dim); text-align: center; margin-top: 4px; }
+    .swatch-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .type-btn {
+      width: 52px; height: 52px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card-2);
+      font-size: 24px; display: flex; align-items: center; justify-content: center;
+    }
+    .type-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
+    .chooser-btn {
+      width: 100%; text-align: left; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px;
+      padding: 16px 17px; margin-bottom: 11px; font-family: inherit; display: flex; align-items: center; gap: 13px;
+    }
+    .chooser-btn .icon { font-size: 29px; }
+    .chooser-btn .label { font-weight: 700; font-size: 18px; }
+    .chooser-btn .desc { font-size: 14.5px; color: var(--text-dim); margin-top: 1px; }
+    .sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
+    .btn {
+      flex: 1; border: none; border-radius: 12px; padding: 16px; font-size: 18px;
+      font-weight: 600; font-family: inherit;
+    }
+    /* Three buttons in the row at once (a planned activity's edit sheet) need a bit less padding/size to keep each label to one line. */
+    .sheet-actions.compact .btn { padding: 14px 6px; font-size: 15.5px; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:disabled { opacity: 0.55; }
+    .btn-ghost { background: var(--card-2); color: var(--text); }
+    .btn-danger { background: none; color: var(--bad); border: 1px solid #cf453655; flex: none; padding: 16px 20px; }
+    .btn-danger:active { background: #cf45360d; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: calc(196px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+      background: #2a241a; border: 1px solid #3a3222; color: #fff;
+      padding: 10px 18px; border-radius: 30px; font-size: 13px; opacity: 0;
+      transition: all 0.25s ease; z-index: 30; pointer-events: none; max-width: 85%; text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* ---------- live-demo "back to site" pill ----------
+       Placed OUTSIDE .app-shell/.app-scale (see the HTML insertion point)
+       because .app-scale's transform:scale() creates a new containing
+       block for position:fixed descendants — a fixed pill nested inside
+       it would be positioned against the scaled app coordinate system,
+       not the real viewport. As a direct child of <body> it sits fixed
+       to the true viewport, and since fixed elements are taken out of
+       flow it doesn't disturb body's flex-centering of .app-shell either. */
+    .demo-pill {
+      position: fixed; left: 14px; bottom: calc(142px + env(safe-area-inset-bottom));
+      z-index: 40; display: inline-flex; align-items: center; gap: 6px;
+      background: #2a241a; color: #fff; text-decoration: none;
+      font-family: inherit; font-size: 12.5px; font-weight: 600;
+      padding: 9px 14px 9px 11px; border-radius: 30px; border: 1px solid #3a3222;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+    }
+    .demo-pill svg { flex: none; }
+    .demo-pill b { font-weight: 800; }
+  </style>
+</head>
+<body>
+<a class="demo-pill" href="index.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span><b>Demo</b> &middot; back to site</span></a>
+<div class="app-shell">
+<div class="app-scale">
+  <div class="header-bg">
+    <div class="brandbar">
+      <svg class="brand-mark" width="30" height="30" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" style="stroke:var(--accent)" stroke-width="2.6"/>
+        <circle cx="12" cy="12" r="3.6" style="fill:var(--accent)"/>
+      </svg>
+      <span class="brand-word">Scanva</span>
+    </div>
+    <div class="header">
+      <button type="button" class="avatar-wrap" id="avatarWrap" title="Change profile picture">
+        <img class="avatar" id="avatarImg" hidden>
+        <div class="avatar-fallback" id="avatarFallback">🏃</div>
+        <span class="avatar-edit-badge">✏️</span>
+      </button>
+      <div class="header-name" id="headerNameBtn">
+        <h1 id="profileName">Training Diary</h1>
+        <div class="sub" id="profileSub">Tap here to set your name &amp; picture</div>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="tab-content">
+    <div class="tab-page-scroll" id="tab-statistik">
+      <div class="ai-tip-card" id="aiTipCard">
+        <div class="ai-tip-head">
+          <span class="ai-tip-icon">✨</span>
+          <div class="title">Today's recommendation</div>
+          <button type="button" class="ai-tip-refresh" id="aiTipRefresh">Refresh</button>
+        </div>
+        <div class="ai-tip-body dim" id="aiTipBody">Loading…</div>
+      </div>
+      <div class="stats" id="statsRow"></div>
+      <div class="chart-card" id="chartCard"></div>
+      <div class="chart-card" id="last7Card"></div>
+      <div class="chart-card" id="monthCard"></div>
+    </div>
+    <div class="tab-page-scroll" id="tab-aktiviteter" hidden>
+      <div class="section-title">Activities</div>
+      <div class="activities" id="activityList">
+        <div class="loading-state">Loading…</div>
+      </div>
+    </div>
+    <div class="tab-page-scroll" id="tab-planerat" hidden>
+      <div id="plannedSection"></div>
+    </div>
+    <div class="tab-page-scroll" id="tab-ai" hidden>
+      <div class="ai-lock-overlay">
+        <div class="ai-lock-badge">🔒</div>
+        <div class="ai-lock-title">Upgrade to unlock AI features</div>
+        <div class="ai-lock-sub">Load, goals, today's recommendation, 7-day plan and the AI chat.</div>
+      </div>
+      <div class="ai-lock-content">
+      <div class="ai-tip-card ai-load-card" id="aiLoadCard">
+        <div class="ai-tip-head">
+          <span class="ai-tip-icon">📈</span>
+          <div class="title">Load</div>
+        </div>
+        <div id="aiLoadBody"><div class="load-empty">Loading…</div></div>
+      </div>
+      <div class="ai-tip-card ai-goals-card" id="aiGoalsCard">
+        <div class="ai-tip-head goals-head-row">
+          <span class="ai-tip-icon">🎯</span>
+          <div class="title">Goals</div>
+          <button type="button" class="ai-tip-refresh" id="aiGoalsEdit">Edit</button>
+        </div>
+        <div class="goals-row" id="aiGoalsRow"></div>
+      </div>
+      <div class="ai-tip-card ai-week-card" id="aiWeekCard">
+        <div class="ai-tip-head">
+          <span class="ai-tip-icon">📅</span>
+          <div class="title">7-day plan (AI)</div>
+          <button type="button" class="ai-tip-refresh" id="aiWeekRefresh">Refresh</button>
+        </div>
+        <div class="ai-week-list" id="aiWeekList">
+          <div class="ai-tip-body dim">Loading…</div>
+        </div>
+        <div class="ai-chat">
+          <div class="ai-chat-log" id="aiChatLog"></div>
+          <div class="ai-chat-input-row">
+            <input type="text" class="ai-chat-input" id="aiChatInput" placeholder="Ask the AI about the plan…">
+            <button type="button" class="ai-chat-send" id="aiChatSend">Ask</button>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="fab" id="fabAdd" title="Add">+</button>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="statistik">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      Stats
+    </button>
+    <button class="tab-btn" data-tab="aktiviteter">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      Activities
+    </button>
+    <button class="tab-btn" data-tab="planerat">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>
+      </svg>
+      Planned
+      <span class="tab-badge" id="plannedBadge" hidden>0</span>
+    </button>
+    <button class="tab-btn" data-tab="ai">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+        <circle cx="12" cy="12" r="3.4"/>
+      </svg>
+      AI
+    </button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="sheet" id="sheet"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+  <script>
+    /* ======================================================================
+     * Scanva -- live demo data layer
+     * ----------------------------------------------------------------------
+     * This page has never talked to a real Google Sheet: everything below
+     * is generated in the browser, on load, and lives only in memory for
+     * this page view. It stands in for google.script.run with the exact
+     * same chainable .withSuccessHandler(fn).withFailureHandler(fn).name(...)
+     * shape the real app's script (right below this one, byte-for-byte the
+     * same file as the actual product) calls -- so the same app code runs
+     * unmodified against a fictional dataset instead of a live sheet.
+     * Reload the page for a fresh, reshuffled demo athlete.
+     * ==================================================================== */
+    (function () {
+      'use strict';
+
+      var SWE_DAY = ['Sönd', 'Mån', 'Tis', 'Ons', 'Tors', 'Fred', 'Lörd']; // Date#getDay(): 0=Sun..6=Sat
+
+      function pad2(n) { return n < 10 ? '0' + n : String(n); }
+      function isoDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+      function addDays(d, n) { var r = new Date(d); r.setDate(r.getDate() + n); return r; }
+      function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+      function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+      function randFloat(min, max, dec) { var v = Math.random() * (max - min) + min; var f = Math.pow(10, dec || 1); return Math.round(v * f) / f; }
+      function chance(p) { return Math.random() < p; }
+
+      // ISO-8601 week number.
+      function isoWeek(d) {
+        var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        var day = t.getUTCDay() || 7;
+        t.setUTCDate(t.getUTCDate() + 4 - day);
+        var yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+        return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
+      }
+
+      var RUN_NAMES = ['Easy run', 'Long run', 'Interval 400s', 'Tempo run', 'Hill repeats', 'Recovery jog', 'Fartlek', 'Threshold run', 'Trail run', 'Track session'];
+      var RIDE_NAMES = ['Easy spin', 'Long ride', 'Sweet spot intervals', 'Hill climb', 'Group ride', 'Recovery ride'];
+      var SWIM_NAMES = ['Technique swim', 'Endurance swim', 'Sprint intervals', 'Open water swim'];
+      var GYM_NAMES = ['Full body strength', 'Leg day', 'Core & mobility', 'Upper body strength'];
+      var XT_NAMES = ['Crosstrainer intervals', 'Easy crosstrainer'];
+      var COMMENTS = ['Felt strong', 'Legs a bit heavy', 'Great weather for it', 'Solid session', 'Tired but pushed through', 'New best pace!', 'Easy and relaxed', 'Windy but good', 'Right on plan', '', '', ''];
+
+      var TYPE_POOL = [
+        { key: 'lopning', weight: 5, names: RUN_NAMES, tid: [22, 80], km: [3, 16] },
+        { key: 'styrka', weight: 2, names: GYM_NAMES, tid: [30, 65], km: [0, 0] },
+        { key: 'cykel', weight: 2, names: RIDE_NAMES, tid: [40, 150], km: [15, 60] },
+        { key: 'simning', weight: 1, names: SWIM_NAMES, tid: [20, 60], km: [0.8, 3] },
+        { key: 'crosstrainer', weight: 1, names: XT_NAMES, tid: [20, 45], km: [0, 0] }
+      ];
+      function pickType() {
+        var total = TYPE_POOL.reduce(function (s, t) { return s + t.weight; }, 0);
+        var r = Math.random() * total;
+        for (var i = 0; i < TYPE_POOL.length; i++) { r -= TYPE_POOL[i].weight; if (r <= 0) return TYPE_POOL[i]; }
+        return TYPE_POOL[0];
+      }
+      function difficultyFor(typeKey) {
+        if (typeKey === 'styrka') return 'styrka';
+        var r = Math.random();
+        return r < 0.45 ? 'lag' : (r < 0.8 ? 'medel' : 'hog');
+      }
+      function makeSession() {
+        var t = pickType();
+        return {
+          pass: pick(t.names),
+          kommentar: pick(COMMENTS),
+          tid: randInt(t.tid[0], t.tid[1]),
+          km: t.km[1] > 0 ? randFloat(t.km[0], t.km[1], 1) : 0,
+          difficulty: difficultyFor(t.key),
+          typ: t.key
+        };
+      }
+
+      /* ---------- build the in-memory "sheet" ---------- */
+      var ROWS = [];
+      var ROW_BY_DATE = {};
+      var FIRST_ROW = 11; // mirrors FIRST_DATA_ROW in the real sheet
+      (function buildRows() {
+        var today = new Date(); today.setHours(0, 0, 0, 0);
+        var mondayOffset = (today.getDay() + 6) % 7; // days since this week's Monday
+        var start = addDays(today, -(6 * 7) - mondayOffset); // Monday, 6 full weeks back
+        var end = addDays(today, 6);
+        var row = FIRST_ROW;
+        for (var d = start; d <= end; d = addDays(d, 1)) {
+          var dow = d.getDay();
+          var week = isoWeek(d);
+          var entry = {
+            row: row++,
+            _week: week,
+            day: SWE_DAY[dow],
+            date: isoDate(d),
+            pass1: '', kommentar1: '', tid1: 0, km1: 0, difficulty1: 'none', typ1: '', stravaId1: '', polyline1: '',
+            pass2: '', kommentar2: '', tid2: 0, km2: 0, difficulty2: 'none', typ2: '', stravaId2: '', polyline2: '',
+            planPass1: '', planTid1: 0, planPass2: '', planTid2: 0
+          };
+          var isFuture = d > today;
+          if (!isFuture) {
+            if (chance(0.72)) {
+              var s1 = makeSession();
+              entry.pass1 = s1.pass; entry.kommentar1 = s1.kommentar; entry.tid1 = s1.tid; entry.km1 = s1.km;
+              entry.difficulty1 = s1.difficulty; entry.typ1 = s1.typ;
+              if (chance(0.22)) {
+                var s2 = makeSession();
+                entry.pass2 = s2.pass; entry.kommentar2 = s2.kommentar; entry.tid2 = s2.tid; entry.km2 = s2.km;
+                entry.difficulty2 = s2.difficulty; entry.typ2 = s2.typ;
+              }
+            }
+          } else if (chance(0.45)) {
+            var ps = makeSession();
+            entry.planPass1 = ps.pass; entry.planTid1 = ps.tid;
+            if (chance(0.25)) { var ps2 = makeSession(); entry.planPass2 = ps2.pass; entry.planTid2 = ps2.tid; }
+          }
+          ROWS.push(entry);
+          ROW_BY_DATE[entry.date] = entry;
+        }
+      })();
+
+      function hasContent(r) { return !!(r.pass1 || r.kommentar1 || r.pass2 || r.kommentar2); }
+
+      function toActivity(r) {
+        return {
+          row: r.row, week: r._week, day: r.day, date: r.date,
+          pass1: r.pass1, kommentar1: r.kommentar1, tid1: r.tid1, km1: r.km1, difficulty1: r.difficulty1, typ1: r.typ1, stravaId1: r.stravaId1, polyline1: r.polyline1,
+          pass2: r.pass2, kommentar2: r.kommentar2, tid2: r.tid2, km2: r.km2, difficulty2: r.difficulty2, typ2: r.typ2, stravaId2: r.stravaId2, polyline2: r.polyline2
+        };
+      }
+
+      /* ---------- profile + goal times (mutable, in memory only) ---------- */
+      var PROFILE = { name: 'Robin Ek', sub: 'Demo OK · Live preview', avatar: '' };
+      var GOAL_TIMES = { t3k: 750, t5k: 1275, t10k: 2690 }; // 12:30 / 21:15 / 44:50
+
+      var DEFAULT_DIFFICULTIES = [
+        { key: 'lag', label: 'Low intensity', color: '#9cff6f' },
+        { key: 'medel', label: 'Medium intensity', color: '#ffa649' },
+        { key: 'hog', label: 'High intensity', color: '#ff8b8b' },
+        { key: 'styrka', label: 'Strength', color: '#6fa8dc' },
+        { key: 'none', label: 'None', color: '#ffffff' }
+      ];
+      var DEFAULT_TYPES = [
+        { key: 'lopning', label: 'Running', icon: '🏃' },
+        { key: 'cykel', label: 'Cycling', icon: '🚴' },
+        { key: 'simning', label: 'Swimming', icon: '🏊' },
+        { key: 'crosstrainer', label: 'Crosstrainer', icon: '🌀' },
+        { key: 'styrka', label: 'Strength training', icon: '🏋️' }
+      ];
+
+      /* ---------- computed views, mirroring the real server's getData() ---------- */
+      function computeWeekly() {
+        var byWeek = {}; var order = [];
+        ROWS.forEach(function (r) {
+          if (!hasContent(r)) return;
+          var w = r._week;
+          if (!byWeek[w]) { byWeek[w] = { week: w, tidHours: 0, km: 0, sessions: 0 }; order.push(w); }
+          byWeek[w].tidHours += (r.tid1 + r.tid2) / 60;
+          byWeek[w].km += r.km1 + r.km2;
+          if (r.pass1) byWeek[w].sessions++;
+          if (r.pass2) byWeek[w].sessions++;
+        });
+        return order.map(function (w) {
+          var e = byWeek[w];
+          e.tidHours = Math.round(e.tidHours * 100) / 100;
+          e.km = Math.round(e.km * 10) / 10;
+          return e;
+        });
+      }
+
+      function computeLoad(weekly) {
+        if (!weekly || weekly.length < 2) return null;
+        var minutes = weekly.map(function (w) { return (w.tidHours || 0) * 60; });
+        var n = minutes.length;
+        var current = minutes[n - 1];
+        var prior = minutes.slice(Math.max(0, n - 5), n - 1);
+        var avgPrior = prior.length ? prior.reduce(function (a, b) { return a + b; }, 0) / prior.length : 0;
+        var ratio = avgPrior > 0 ? current / avgPrior : (current > 0 ? 1.5 : 1);
+        return { week: weekly[n - 1].week, currentMin: Math.round(current), avgPriorMin: Math.round(avgPrior), ratio: Math.round(ratio * 100) / 100 };
+      }
+
+      function computeData() {
+        var activities = ROWS.filter(hasContent).map(toActivity).reverse();
+        var planned = ROWS
+          .filter(function (r) { return !hasContent(r) && (r.planPass1 || r.planPass2); })
+          .map(function (r) { return { row: r.row, week: r._week, day: r.day, date: r.date, pass1: r.planPass1, tid1: r.planTid1, pass2: r.planPass2, tid2: r.planTid2 }; })
+          .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+        var weekly = computeWeekly();
+        var load = computeLoad(weekly);
+        var totalSessions = 0;
+        weekly.forEach(function (w) { totalSessions += w.sessions; });
+
+        var todayIso = isoDate(new Date());
+        var lastIdx = -1;
+        for (var i = ROWS.length - 1; i >= 0; i--) { if (hasContent(ROWS[i]) && ROWS[i].date <= todayIso) { lastIdx = i; break; } }
+        if (lastIdx === -1) { for (var j = ROWS.length - 1; j >= 0; j--) { if (hasContent(ROWS[j])) { lastIdx = j; break; } } }
+        var last7 = [];
+        if (lastIdx >= 0) {
+          var startIdx = Math.max(0, lastIdx - 6);
+          for (var k = startIdx; k <= lastIdx; k++) {
+            var r = ROWS[k];
+            last7.push({
+              date: r.date, day: r.day,
+              tidMin: r.tid1 + r.tid2,
+              km: Math.round((r.km1 + r.km2) * 10) / 10,
+              difficulty: r.pass1 ? r.difficulty1 : (r.pass2 ? r.difficulty2 : 'none')
+            });
+          }
+        }
+
+        return {
+          activities: activities, planned: planned, weekly: weekly, last7: last7,
+          bounds: { min: ROWS[0].date, max: ROWS[ROWS.length - 1].date },
+          stats: { totalSessions: totalSessions },
+          difficulties: DEFAULT_DIFFICULTIES, activityTypes: DEFAULT_TYPES,
+          load: load, goalTimes: GOAL_TIMES, generatedAt: new Date().toISOString()
+        };
+      }
+
+      /* ---------- the mocked RPC surface ---------- */
+      var MOCK_API = {
+        getData: function () { return computeData(); },
+        getProfile: function () { return { name: PROFILE.name, sub: PROFILE.sub, avatar: PROFILE.avatar }; },
+        saveProfile: function (fields) {
+          fields = fields || {};
+          ['name', 'sub', 'avatar'].forEach(function (k) {
+            if (Object.prototype.hasOwnProperty.call(fields, k)) {
+              var v = fields[k] || '';
+              if (k === 'avatar' && v && v.length > 9000) throw new Error('The image is too large even after compression — try a different image.');
+              PROFILE[k] = v;
+            }
+          });
+          return { name: PROFILE.name, sub: PROFILE.sub, avatar: PROFILE.avatar };
+        },
+        saveGoalTimes: function (fields) {
+          fields = fields || {};
+          ['t3k', 't5k', 't10k'].forEach(function (k) {
+            if (!Object.prototype.hasOwnProperty.call(fields, k)) return;
+            var v = fields[k];
+            if (v === '' || v === null || typeof v === 'undefined') { delete GOAL_TIMES[k]; }
+            else { var num = Number(v); if (isFinite(num) && num > 0) GOAL_TIMES[k] = Math.round(num); }
+          });
+          return { t3k: GOAL_TIMES.t3k || null, t5k: GOAL_TIMES.t5k || null, t10k: GOAL_TIMES.t10k || null };
+        },
+        getActivityForDate: function (dateIso) {
+          var r = ROW_BY_DATE[dateIso];
+          if (!r) throw new Error("That date isn't in your training diary.");
+          return toActivity(r);
+        },
+        getOrInitPlanForDate: function (dateIso) {
+          var r = ROW_BY_DATE[dateIso];
+          if (!r) throw new Error("That date isn't in your plan.");
+          return { row: r.row, pass1: r.planPass1 || '', tid1: r.planTid1 || 0, pass2: r.planPass2 || '', tid2: r.planTid2 || 0 };
+        },
+        saveActivity: function (row, fields) {
+          var r = ROWS[Number(row) - FIRST_ROW];
+          if (!r) throw new Error('Invalid row.');
+          fields = fields || {};
+          ['pass1', 'kommentar1', 'typ1', 'stravaId1', 'polyline1', 'pass2', 'kommentar2', 'typ2', 'stravaId2', 'polyline2', 'difficulty1', 'difficulty2'].forEach(function (k) {
+            if (Object.prototype.hasOwnProperty.call(fields, k)) r[k] = fields[k];
+          });
+          ['tid1', 'km1', 'tid2', 'km2'].forEach(function (k) {
+            if (Object.prototype.hasOwnProperty.call(fields, k)) {
+              var v = fields[k];
+              var n = (v === '' || v === null || typeof v === 'undefined') ? 0 : Number(v);
+              r[k] = isNaN(n) ? 0 : n;
+            }
+          });
+          return { ok: true };
+        },
+        deleteActivity: function (row) {
+          var r = ROWS[Number(row) - FIRST_ROW];
+          if (!r) throw new Error('Invalid row.');
+          ['pass1', 'kommentar1', 'typ1', 'stravaId1', 'polyline1', 'pass2', 'kommentar2', 'typ2', 'stravaId2', 'polyline2'].forEach(function (k) { r[k] = ''; });
+          r.tid1 = 0; r.km1 = 0; r.tid2 = 0; r.km2 = 0; r.difficulty1 = 'none'; r.difficulty2 = 'none';
+          return { ok: true };
+        },
+        savePlan: function (row, fields) {
+          var r = ROWS[Number(row) - FIRST_ROW];
+          if (!r) throw new Error('Invalid row.');
+          fields = fields || {};
+          if (Object.prototype.hasOwnProperty.call(fields, 'pass1')) r.planPass1 = fields.pass1;
+          if (Object.prototype.hasOwnProperty.call(fields, 'pass2')) r.planPass2 = fields.pass2;
+          if (Object.prototype.hasOwnProperty.call(fields, 'tid1')) { var n1 = Number(fields.tid1); r.planTid1 = isNaN(n1) ? 0 : n1; }
+          if (Object.prototype.hasOwnProperty.call(fields, 'tid2')) { var n2 = Number(fields.tid2); r.planTid2 = isNaN(n2) ? 0 : n2; }
+          return { ok: true };
+        },
+        getTrainingRecommendation: function () { return { locked: true, error: 'Upgrade to unlock AI features.' }; },
+        getWeeklyAiPlan: function () { return { locked: true, error: 'Upgrade to unlock AI features.' }; },
+        askAiTrainingQuestion: function () { return { locked: true, error: 'Upgrade to unlock AI features.' }; },
+        isStravaConnected: function () { return true; },
+        getStravaAuthUrl: function () { throw new Error("Strava import isn't available in this live demo."); },
+        listStravaActivitiesForDate: function () { throw new Error("Strava import isn't available in this live demo."); },
+        importStravaIntoActivity: function () { throw new Error("Strava import isn't available in this live demo."); },
+        unlinkStrava: function () { return { ok: true }; },
+        autoImportStravaActivities: function () { return { imported: 0 }; }
+      };
+
+      /* ---------- google.script.run shim ----------
+       * Every call in this app follows the same chain:
+       *   google.script.run.withSuccessHandler(fn).withFailureHandler(fn).name(args)
+       * so that's the only shape this shim needs to support. */
+      function callMock(name, args, onSuccess, onFailure) {
+        setTimeout(function () {
+          try {
+            var result = MOCK_API[name].apply(null, args);
+            if (onSuccess) onSuccess(result);
+          } catch (err) {
+            if (onFailure) onFailure(err); else if (window.console) console.error(err);
+          }
+        }, 160 + Math.random() * 220); // small delay so it still feels like a network round trip
+      }
+
+      function runnerWithHandlers(onSuccess, onFailure) {
+        var runner = {};
+        Object.keys(MOCK_API).forEach(function (name) {
+          runner[name] = function () { callMock(name, arguments, onSuccess, onFailure); };
+        });
+        return runner;
+      }
+
+      window.google = {
+        script: {
+          run: {
+            withSuccessHandler: function (onSuccess) {
+              return {
+                withFailureHandler: function (onFailure) { return runnerWithHandlers(onSuccess, onFailure); }
+              };
+            }
+          }
+        }
+      };
+    })();
+  </script>
+
+  <script>
+    var STATE = {
+      activities: [], planned: [], weekly: [], last7: [], stats: {}, byRow: {},
+      difficulties: [], activityTypes: [], bounds: {},
+      weeklyMode: 'km', last7Mode: 'km', weeklySelectedWeek: null,
+      load: null, goalTimes: {}
+    };
+    var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var WEEKDAYS_SHORT = ['M','T','W','T','F','S','S'];
+    var DAY_ABBR = { 'Mån':'M','Tis':'T','Ons':'W','Tors':'T','Fred':'F','Lörd':'S','Sönd':'S' };
+    var DEFAULT_DIFFICULTIES = [
+      { key: 'lag', label: 'Low intensity', color: '#77c94f' },
+      { key: 'medel', label: 'Medium intensity', color: '#e8a23a' },
+      { key: 'hog', label: 'High intensity', color: '#e0655f' },
+      { key: 'styrka', label: 'Strength', color: '#5a8fc9' },
+      { key: 'none', label: 'None', color: '#ffffff' }
+    ];
+    var DEFAULT_TYPES = [
+      { key: 'lopning', label: 'Running', icon: '🏃' },
+      { key: 'cykel', label: 'Cycling', icon: '🚴' },
+      { key: 'simning', label: 'Swimming', icon: '🏊' },
+      { key: 'crosstrainer', label: 'Crosstrainer', icon: '🌀' },
+      { key: 'styrka', label: 'Strength training', icon: '🏋️' }
+    ];
+
+    function todayIso() {
+      var d = new Date();
+      var tzOff = d.getTimezoneOffset() * 60000;
+      return new Date(d - tzOff).toISOString().slice(0, 10);
+    }
+    function fmtMin(min) {
+      min = Math.round(min || 0);
+      if (min <= 0) return '0 min';
+      var h = Math.floor(min / 60), m = min % 60;
+      if (h === 0) return m + ' min';
+      if (m === 0) return h + ' h';
+      return h + 'h ' + m + 'min';
+    }
+    function fmtKm(km) {
+      km = km || 0;
+      return (Math.round(km * 10) / 10).toString().replace('.', ',') + ' km';
+    }
+    /** minPerKm as a decimal (e.g. 4.9) -> "4:54/km" */
+    function fmtPace(minPerKm) {
+      if (!minPerKm || !isFinite(minPerKm)) return '';
+      var totalSec = Math.round(minPerKm * 60);
+      var m = Math.floor(totalSec / 60), s = totalSec % 60;
+      return m + ':' + (s < 10 ? '0' : '') + s + '/km';
+    }
+    /** "13:45" or "1:03:20" -> whole seconds, or null if not parseable. */
+    function parseClockToSec(str) {
+      str = (str || '').trim();
+      if (!str) return null;
+      var parts = str.split(':').map(function (p) { return Number(p); });
+      if (!parts.length || parts.some(function (n) { return !isFinite(n) || n < 0; })) return null;
+      var sec = 0;
+      parts.forEach(function (n) { sec = sec * 60 + n; });
+      return sec > 0 ? Math.round(sec) : null;
+    }
+    /** Whole seconds -> "mm:ss" (or "h:mm:ss" past an hour). */
+    function formatClockSec(totalSec) {
+      totalSec = Math.round(totalSec || 0);
+      var h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60;
+      var mm = h > 0 ? (m < 10 ? '0' : '') + m : m;
+      var ss = (s < 10 ? '0' : '') + s;
+      return (h > 0 ? h + ':' : '') + mm + ':' + ss;
+    }
+    /** A single short label for a calendar-day cell — distance if there is one (it's the more telling number for a run/ride), otherwise time. No spaces, so it always fits under a small icon. */
+    function compactCellMeta(totalKm, totalTid) {
+      if (totalKm > 0) return (Math.round(totalKm * 10) / 10).toString().replace('.', ',') + 'km';
+      if (totalTid > 0) return (totalTid >= 60 ? (Math.round(totalTid / 6) / 10).toString().replace('.', ',') + 'h' : Math.round(totalTid) + 'min');
+      return '';
+    }
+
+    /** Decodes a Google/Strava encoded polyline (precision 5) into [lat,lng] pairs. */
+    function decodePolyline(str) {
+      var index = 0, lat = 0, lng = 0, coords = [];
+      while (index < str.length) {
+        var b, shift = 0, result = 0;
+        do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+        shift = 0; result = 0;
+        do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+        coords.push([lat / 1e5, lng / 1e5]);
+      }
+      return coords;
+    }
+
+    /** Renders a route's shape as a tiny standalone SVG "signature" line — no map tiles, so it's instant even in a long scrolling feed. */
+    function routeSparkSvg(polyline) {
+      if (!polyline) return '';
+      var pts = decodePolyline(polyline);
+      if (pts.length < 2) return '';
+      var lats = pts.map(function (p) { return p[0]; });
+      var lngs = pts.map(function (p) { return p[1]; });
+      var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+      var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
+      var latSpan = Math.max(maxLat - minLat, 1e-6);
+      var xScale = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180) || 1;
+      var lngSpan = Math.max((maxLng - minLng) * xScale, 1e-6);
+      var w = 140, h = 140, pad = 10;
+      var scale = Math.min((w - pad * 2) / lngSpan, (h - pad * 2) / latSpan);
+      var drawW = lngSpan * scale, drawH = latSpan * scale;
+      var offX = (w - drawW) / 2, offY = (h - drawH) / 2;
+      var d = pts.map(function (p, i) {
+        var x = offX + (p[1] - minLng) * xScale * scale;
+        var y = h - (offY + (p[0] - minLat) * scale);
+        return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+      }).join(' ');
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<path d="' + d + '" fill="none" stroke="#fc4c02" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    function escapeHtml(s) {
+      return (s || '').replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function diffInfo(key) {
+      var list = STATE.difficulties.length ? STATE.difficulties : DEFAULT_DIFFICULTIES;
+      for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+      return list[list.length - 1];
+    }
+    function typeInfo(key) {
+      var list = STATE.activityTypes.length ? STATE.activityTypes : DEFAULT_TYPES;
+      for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+      return null;
+    }
+
+    /* Hand-drawn outline icons for each activity type: solid black stroke, no fill. */
+    function typeIconSvg(key, size) {
+      var s = size || 20;
+      var attrs = 'width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="#e7ead9" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"';
+      var bodies = {
+        lopning: '<circle cx="14.1" cy="3.6" r="1.8"/><path d="M13.3 6.1l-2.7 4.8 2.5 3.2-1.9 4.5"/><path d="M10.6 10.9l-2.9 1.6-2.5-.6"/><path d="M12.7 6.7l2.7 1.9-1 3.1"/><path d="M12.7 6.7l-2.9-.9-1.7 2.2"/>',
+        cykel: '<circle cx="5.8" cy="17.3" r="3.4"/><circle cx="18.2" cy="17.3" r="3.4"/><path d="M15.6 6.4a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4z"/><path d="M11.6 17.3v-3.6l-2.8-2.9 3.7-2.7 2 2.7h3.7"/><path d="M8.4 17.3h6.9"/>',
+        simning: '<circle cx="12" cy="5.2" r="1.9"/><path d="M9.3 8.6l1.9-1.4 1.8 2.4 2.4-1.7"/><path d="M2.2 13.6c1.4 1.5 2.9 1.5 4.3 0s2.9-1.5 4.3 0 2.9 1.5 4.3 0 2.9-1.5 4.3 0"/><path d="M2.2 18c1.4 1.5 2.9 1.5 4.3 0s2.9-1.5 4.3 0 2.9 1.5 4.3 0 2.9-1.5 4.3 0"/>',
+        crosstrainer: '<path d="M4.5 12.5a7.5 7.5 0 0 1 13-5"/><path d="M19.5 11.5a7.5 7.5 0 0 1-13 5"/><path d="M17.2 4.6l.3 3.4-3.4.4"/><path d="M6.8 19.4l-.3-3.4 3.4-.4"/>',
+        styrka: '<rect x="1.3" y="9.4" width="2.8" height="5.6" rx="1"/><rect x="19.9" y="9.4" width="2.8" height="5.6" rx="1"/><rect x="4.6" y="10.6" width="2" height="3.2" rx="0.6"/><rect x="17.4" y="10.6" width="2" height="3.2" rx="0.6"/><line x1="6.8" y1="12.2" x2="17.2" y2="12.2"/>'
+      };
+      return '<svg ' + attrs + '>' + (bodies[key] || bodies.lopning) + '</svg>';
+    }
+
+    /* ---------- tabs ---------- */
+    Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (btn) {
+      btn.addEventListener('click', function () {
+        var tab = btn.getAttribute('data-tab');
+        Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (b) { b.classList.toggle('active', b === btn); });
+        document.getElementById('tab-statistik').hidden = tab !== 'statistik';
+        document.getElementById('tab-aktiviteter').hidden = tab !== 'aktiviteter';
+        document.getElementById('tab-planerat').hidden = tab !== 'planerat';
+        document.getElementById('tab-ai').hidden = tab !== 'ai';
+      });
+    });
+
+    /* ---------- data load ---------- */
+    function load(isRefresh) {
+      var btn = document.getElementById('refreshBtn');
+      if (isRefresh) btn.classList.add('spin');
+      google.script.run
+        .withSuccessHandler(function (data) {
+          btn.classList.remove('spin');
+          STATE.activities = data.activities || [];
+          STATE.planned = data.planned || [];
+          STATE.weekly = data.weekly || [];
+          STATE.last7 = data.last7 || [];
+          STATE.stats = data.stats || {};
+          STATE.difficulties = data.difficulties || DEFAULT_DIFFICULTIES;
+          STATE.activityTypes = data.activityTypes || DEFAULT_TYPES;
+          STATE.bounds = data.bounds || {};
+          STATE.load = data.load || null;
+          STATE.goalTimes = data.goalTimes || {};
+          STATE.byRow = {};
+          STATE.activities.forEach(function (a) { STATE.byRow[a.row] = a; });
+          renderStats();
+          renderChart();
+          renderLast7();
+          renderMonthCalendar();
+          renderPlanned();
+          renderActivities();
+          renderLoadGauge();
+          renderGoalTimes();
+          loadAiTip(false);
+          loadAiWeekPlan(false);
+          if (isRefresh) { showToast('Refreshed'); autoImportStrava(); }
+        })
+        .withFailureHandler(function (err) {
+          btn.classList.remove('spin');
+          document.getElementById('activityList').innerHTML =
+            '<div class="empty-state">Could not read the sheet.<br>' + escapeHtml(err.message || String(err)) + '</div>';
+        })
+        .getData();
+    }
+
+    function renderStats() {
+      var w = STATE.weekly;
+      var cur = w[w.length - 1] || { tidHours: 0, km: 0, sessions: 0 };
+      var prev = w[w.length - 2] || null;
+
+      function deltaHtml(curVal, prevVal, fmt) {
+        if (prev == null) return '';
+        var diff = curVal - prevVal;
+        if (Math.abs(diff) < 0.05) return '<div class="delta flat">= last wk.</div>';
+        var cls = diff > 0 ? 'up' : 'down';
+        var arrow = diff > 0 ? '&#9650;' : '&#9660;';
+        return '<div class="delta ' + cls + '">' + arrow + ' ' + fmt(Math.abs(diff)) + '</div>';
+      }
+
+      var html = '';
+      html += '<div class="stat"><div class="label">Km this week</div><div class="value">' + fmtKm(cur.km) + '</div>' +
+        deltaHtml(cur.km, prev ? prev.km : 0, fmtKm) + '</div>';
+      html += '<div class="stat"><div class="label">Time this week</div><div class="value">' + fmtMin(cur.tidHours * 60) + '</div>' +
+        deltaHtml(cur.tidHours, prev ? prev.tidHours : 0, function (v) { return fmtMin(v * 60); }) + '</div>';
+      html += '<div class="stat"><div class="label">Sessions this week</div><div class="value">' + (cur.sessions || 0) + '</div>' +
+        deltaHtml(cur.sessions || 0, prev ? (prev.sessions || 0) : 0, function (v) { return Math.round(v).toString(); }) + '</div>';
+      document.getElementById('statsRow').innerHTML = html;
+    }
+
+    function renderChart() {
+      // Show at most this many of the most recent weeks, spaced out to fill
+      // the card's actual width — rather than a fixed per-week column width
+      // that used to need horizontal scrolling (and, with bigger label text,
+      // let neighboring labels overlap once there were more than a few
+      // weeks of data).
+      var MAX_CHART_WEEKS = 8;
+      var w = STATE.weekly.slice(-MAX_CHART_WEEKS);
+      var el = document.getElementById('chartCard');
+      var mode = STATE.weeklyMode;
+
+      var toggleHtml = '<div class="toggle-group">' +
+        '<button data-mode="km" class="' + (mode === 'km' ? 'active' : '') + '">Distance</button>' +
+        '<button data-mode="tid" class="' + (mode === 'tid' ? 'active' : '') + '">Time</button>' +
+        '</div>';
+
+      if (!w.length) {
+        el.innerHTML = '<div class="chart-top"><div class="title">Week by week</div>' + toggleHtml + '</div><div class="empty-state">No data yet</div>';
+        wireToggle(el, 'weeklyMode', renderChart);
+        return;
+      }
+
+      var getVal = function (d) { return mode === 'km' ? d.km : d.tidHours * 60; };
+      var fmt = mode === 'km' ? fmtKm : fmtMin;
+
+      var dataMax = Math.max.apply(null, w.map(getVal)) || 1;
+      // Round the axis itself up to a whole number so the top gridline gets
+      // a clean label (e.g. "53 km") instead of whatever decimal the actual
+      // week happened to total — the highest point then sits right at (or
+      // just under) that top line, same as Strava's own chart.
+      var axisMax = Math.max(1, Math.ceil(dataMax));
+      var axisMid = Math.round(axisMax / 2);
+
+      // el's own content width (minus its left/right padding) is exactly how
+      // much horizontal room the chart has to work with. A left-hand gutter
+      // is reserved for the axis numbers, and the plotted weeks fill
+      // whatever's left of that — so it always fills the screen with no
+      // scrolling needed.
+      var cardPad = 28; // .chart-card's 14px+14px left/right padding
+      var totalW = Math.max((el.clientWidth || 340) - cardPad, 220);
+      var gutterW = 34;
+      var plotW = totalW - gutterW;
+      var colW = plotW / w.length;
+      var padTop = 30, padBottom = 10;
+      var H = 140;
+      var chartTop = padTop, chartBottom = H - padBottom;
+
+      function yFor(v) { return chartBottom - (v / axisMax) * (chartBottom - chartTop); }
+
+      var pts = w.map(function (d, i) {
+        var x = gutterW + colW * i + colW / 2;
+        return { x: x, y: yFor(getVal(d)), val: getVal(d), week: d.week };
+      });
+
+      // Which week is highlighted: whatever was last tapped, defaulting to
+      // the most recent one (same as this card always used to show).
+      var selIdx = pts.length - 1;
+      if (STATE.weeklySelectedWeek != null) {
+        var foundIdx = w.findIndex(function (d) { return d.week === STATE.weeklySelectedWeek; });
+        if (foundIdx !== -1) selIdx = foundIdx;
+      }
+      var selPt = pts[selIdx];
+
+      var LINE_COLOR = '#34402f', LABEL_COLOR = '#a7b39c';
+      var gridLines = [0, axisMid, axisMax].map(function (v) {
+        var y = yFor(v);
+        return '<line x1="' + gutterW + '" y1="' + y.toFixed(1) + '" x2="' + (gutterW + plotW).toFixed(1) + '" y2="' + y.toFixed(1) +
+          '" stroke="' + LINE_COLOR + '" stroke-width="1"/>' +
+          '<text x="' + (gutterW - 8) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" font-size="10.5" font-weight="600" fill="' + LABEL_COLOR + '">' + fmt(v) + '</text>';
+      }).join('');
+
+      var vLines = pts.map(function (p) {
+        return '<line x1="' + p.x.toFixed(1) + '" y1="' + chartTop + '" x2="' + p.x.toFixed(1) + '" y2="' + chartBottom.toFixed(1) +
+          '" stroke="' + LINE_COLOR + '" stroke-width="1"/>';
+      }).join('');
+
+      var linePath = pts.map(function (p, i) { return (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+      var areaPath = linePath + ' L' + pts[pts.length - 1].x.toFixed(1) + ',' + chartBottom.toFixed(1) +
+        ' L' + pts[0].x.toFixed(1) + ',' + chartBottom.toFixed(1) + ' Z';
+
+      // The selected week gets its own accent-colored guideline straight
+      // down to the axis, a soft halo behind its dot, and a bold callout
+      // with the exact number above it — everything else just shows the
+      // shape of the trend, the same way the reference chart only calls
+      // out whichever point you've pressed.
+      var selGuide = '<line x1="' + selPt.x.toFixed(1) + '" y1="' + selPt.y.toFixed(1) + '" x2="' + selPt.x.toFixed(1) + '" y2="' + chartBottom.toFixed(1) +
+        '" stroke="#ff8a3d" stroke-width="2"/>';
+      var selHalo = '<circle cx="' + selPt.x.toFixed(1) + '" cy="' + selPt.y.toFixed(1) + '" r="13" fill="#ff8a3d" opacity="0.16"/>';
+
+      var circles = pts.map(function (p, i) {
+        var sel = i === selIdx;
+        return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (sel ? 5 : 3.2) +
+          '" fill="' + (sel ? '#ff8a3d' : '#1a231a') + '" stroke="#ff8a3d" stroke-width="2"/>';
+      }).join('');
+
+      var calloutY = Math.max(13, selPt.y - 12);
+      var callout = '<text x="' + selPt.x.toFixed(1) + '" y="' + calloutY.toFixed(1) + '" text-anchor="middle" font-size="14" font-weight="800"' +
+        ' fill="#e7ead9" stroke="#10160f" stroke-width="4" paint-order="stroke" style="paint-order:stroke">' + fmt(selPt.val) + '</text>';
+
+      // A transparent hit-area per column, wide and full-height, so tapping
+      // anywhere near a point on a small phone screen — not just its tiny
+      // dot — selects that week.
+      var hitRects = pts.map(function (p, i) {
+        return '<rect data-hit-week="' + w[i].week + '" x="' + (gutterW + colW * i).toFixed(1) + '" y="0" width="' + colW.toFixed(1) +
+          '" height="' + H + '" fill="transparent"/>';
+      }).join('');
+
+      var svg = '<svg viewBox="0 0 ' + totalW + ' ' + H + '" width="' + totalW + '" height="' + H + '">' +
+        '<defs><linearGradient id="gradW" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0%" stop-color="#ff8a3d" stop-opacity="0.28"/>' +
+        '<stop offset="100%" stop-color="#ff8a3d" stop-opacity="0"/></linearGradient></defs>' +
+        gridLines + vLines +
+        '<path d="' + areaPath + '" fill="url(#gradW)" stroke="none"/>' +
+        '<path d="' + linePath + '" fill="none" stroke="#ff8a3d" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' +
+        selGuide + selHalo + circles + callout + hitRects + '</svg>';
+
+      var labels = w.map(function (d) {
+        return '<span class="' + (d.week === w[selIdx].week ? 'sel' : '') + '" style="width:' + colW.toFixed(1) + 'px">v.' + d.week + '</span>';
+      }).join('');
+
+      var selD = w[selIdx];
+      var bigLabel = (selIdx === w.length - 1) ? 'Last week' : ('Week ' + selD.week);
+      el.innerHTML = '<div class="chart-top"><div class="title">Week by week</div>' + toggleHtml + '</div>' +
+        '<div class="big-label">' + bigLabel + '</div><div class="big">' + fmt(getVal(selD)) + '</div>' +
+        '<div class="chart-inner">' + svg +
+        '<div class="week-labels" style="padding:4px 0 2px ' + gutterW + 'px">' + labels + '</div></div>';
+
+      wireToggle(el, 'weeklyMode', renderChart);
+
+      Array.prototype.forEach.call(el.querySelectorAll('[data-hit-week]'), function (rect) {
+        rect.addEventListener('click', function () {
+          STATE.weeklySelectedWeek = Number(rect.getAttribute('data-hit-week'));
+          renderChart();
+        });
+      });
+    }
+
+    function renderLast7() {
+      var el = document.getElementById('last7Card');
+      var days = STATE.last7;
+      var mode = STATE.last7Mode;
+      var toggleHtml = '<div class="toggle-group">' +
+        '<button data-mode="km" class="' + (mode === 'km' ? 'active' : '') + '">Distance</button>' +
+        '<button data-mode="tid" class="' + (mode === 'tid' ? 'active' : '') + '">Time</button>' +
+        '</div>';
+
+      if (!days.length) {
+        el.innerHTML = '<div class="chart-top"><div class="title">Last 7 days</div>' + toggleHtml + '</div><div class="empty-state">No data yet</div>';
+        wireToggle(el, 'last7Mode', renderLast7);
+        return;
+      }
+
+      var getVal = function (d) { return mode === 'km' ? d.km : d.tidMin; };
+      var fmt = mode === 'km' ? fmtKm : fmtMin;
+      var max = Math.max.apply(null, days.map(getVal).concat([0.001]));
+      var todayIsoStr = todayIso();
+
+      var bars = days.map(function (d) {
+        var v = getVal(d);
+        var pct = max > 0 ? Math.max((v / max) * 100, v > 0 ? 6 : 0) : 0;
+        var color = v > 0 ? diffInfo(d.difficulty).color : '#232c21';
+        var isToday = d.date === todayIsoStr;
+        return '<div class="bar-col">' +
+          '<div class="bar-val">' + (v > 0 ? fmt(v) : '') + '</div>' +
+          '<div class="bar" style="height:' + pct + '%;background:' + color + '"></div>' +
+          '<div class="bar-day' + (isToday ? ' today' : '') + '">' + (DAY_ABBR[d.day] || (d.day || '').slice(0, 1)) + '</div>' +
+          '</div>';
+      }).join('');
+
+      el.innerHTML = '<div class="chart-top"><div class="title">Last 7 days</div>' + toggleHtml + '</div>' +
+        '<div class="bars-row">' + bars + '</div>';
+      wireToggle(el, 'last7Mode', renderLast7);
+    }
+
+    function wireToggle(container, stateKey, rerenderFn) {
+      Array.prototype.forEach.call(container.querySelectorAll('.toggle-group button'), function (btn) {
+        btn.addEventListener('click', function () {
+          STATE[stateKey] = btn.getAttribute('data-mode');
+          rerenderFn();
+        });
+      });
+    }
+
+    /* ---------- month calendar ---------- */
+    function renderMonthCalendar() {
+      var el = document.getElementById('monthCard');
+      var currentKey = todayIso().slice(0, 7);
+      if (!STATE.activities.length) {
+        el.innerHTML = '<div class="chart-top"><div class="title">Month overview</div></div><div class="empty-state">No data yet</div>';
+        return;
+      }
+      var byDate = {};
+      STATE.activities.forEach(function (a) { byDate[a.date] = a; });
+
+      var monthKeys = [];
+      STATE.activities.forEach(function (a) {
+        var key = a.date.slice(0, 7);
+        if (monthKeys.indexOf(key) === -1) monthKeys.push(key);
+      });
+      // The calendar should always open on today's month — even one with
+      // nothing logged in it yet — rather than only ever the months that
+      // happen to already have activities in them.
+      if (monthKeys.indexOf(currentKey) === -1) monthKeys.push(currentKey);
+      monthKeys.sort();
+      var currentIdx = monthKeys.indexOf(currentKey);
+
+      var grids = monthKeys.map(function (key) {
+        var parts = key.split('-');
+        var year = Number(parts[0]), monthIdx = Number(parts[1]) - 1;
+        var daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+        var firstWeekday = (new Date(year, monthIdx, 1).getDay() + 6) % 7; // Monday = 0
+        var todayIsoStr = todayIso();
+
+        var cells = '';
+        for (var b = 0; b < firstWeekday; b++) cells += '<div class="month-day empty"></div>';
+        for (var d = 1; d <= daysInMonth; d++) {
+          var iso = key + '-' + (d < 10 ? '0' + d : d);
+          var act = byDate[iso];
+          var isToday = iso === todayIsoStr;
+          var inner;
+          if (act) {
+            var mainDiff = act.pass1 ? act.difficulty1 : (act.pass2 ? act.difficulty2 : 'none');
+            var mainType = act.pass1 ? act.typ1 : act.typ2;
+            var ti = mainType ? typeInfo(mainType) : null;
+            var ringColor = (mainDiff && mainDiff !== 'none') ? diffInfo(mainDiff).color : 'var(--line)';
+            var totalKm = (act.km1 || 0) + (act.km2 || 0);
+            var totalTid = (act.tid1 || 0) + (act.tid2 || 0);
+            var meta = compactCellMeta(totalKm, totalTid);
+            var isTwoActivities = !!(act.pass1 && act.pass2);
+            inner = '<div class="day-circle-wrap">' +
+              '<div class="day-circle" style="--ring:' + ringColor + '">' + (ti ? typeIconSvg(ti.key, 30) : '') + '</div>' +
+              '<span class="daynum-corner">' + d + '</span>' +
+              (isTwoActivities ? '<span class="multi-badge" title="Two sessions this day"></span>' : '') +
+              '</div>' +
+              (meta ? '<div class="day-meta">' + meta + '</div>' : '');
+          } else {
+            inner = '<span class="daynum-big">' + d + '</span>';
+          }
+          cells += '<div class="month-day' + (act ? ' has-activity' : '') + (isToday ? ' today-cell' : '') +
+            '"' + (act ? ' data-row="' + act.row + '"' : '') + '>' + inner + '</div>';
+        }
+
+        return '<div class="month-grid">' +
+          '<div class="month-name">' + MONTHS[monthIdx] + ' ' + year + '</div>' +
+          '<div class="month-weekdays">' + WEEKDAYS_SHORT.map(function (w) { return '<span>' + w + '</span>'; }).join('') + '</div>' +
+          '<div class="month-days">' + cells + '</div>' +
+          '</div>';
+      }).join('');
+
+      el.innerHTML = '<div class="chart-top"><div class="title">Month overview</div></div>' +
+        '<div class="month-scroll" id="monthScroll"><div class="month-track">' + grids + '</div></div>' +
+        (monthKeys.length > 1 ? '<div class="scroll-hint">&larr; &rarr; swipe between months</div>' : '');
+
+      var scrollEl = document.getElementById('monthScroll');
+      var targetIdx = currentIdx >= 0 ? currentIdx : monthKeys.length - 1;
+      if (scrollEl) requestAnimationFrame(function () { scrollEl.scrollLeft = targetIdx * scrollEl.clientWidth; });
+
+      // Tapping a logged day opens the same full activity sheet as tapping
+      // it in Activities — type, time, distance (and pace, shown there
+      // once tid+km are set) all in one place.
+      Array.prototype.forEach.call(el.querySelectorAll('.month-day[data-row]'), function (cell) {
+        cell.addEventListener('click', function () { openEditSheet(STATE.byRow[Number(cell.getAttribute('data-row'))]); });
+      });
+    }
+
+    /* ---------- planned activities ---------- */
+    function plannedCardHtml(p) {
+      var d = p.date ? new Date(p.date + 'T00:00:00') : null;
+      var dayNum = d ? d.getDate() : '–';
+      var monthName = d ? MONTHS_SHORT[d.getMonth()] : '';
+      var title = p.pass1 || p.pass2 || 'Planned session';
+      return '' +
+        '<div class="activity-card planned-card" data-plan-row="' + p.row + '" style="border-left-color:#ff8a3d">' +
+        '<div class="date-badge"><div class="d">' + dayNum + '</div><div class="m">' + monthName + '</div></div>' +
+        '<div class="activity-body">' +
+        '<div class="top-row"><div class="pass-name">' + escapeHtml(title) + '</div>' +
+        '<span class="planned-tag">Planned</span></div>' +
+        '<div class="chip-row">' +
+        (p.tid1 > 0 ? '<div class="chip">' + fmtMin(p.tid1) + '</div>' : '') +
+        '</div>' +
+        (p.pass2 ? '<div class="pass2-tag">' + escapeHtml(p.pass2) + '</div>' : '') +
+        '</div></div>';
+    }
+
+    function renderPlanned() {
+      var el = document.getElementById('plannedSection');
+      var badge = document.getElementById('plannedBadge');
+      if (badge) {
+        if (STATE.planned.length) { badge.hidden = false; badge.textContent = STATE.planned.length; }
+        else badge.hidden = true;
+      }
+      if (!STATE.planned.length) {
+        el.innerHTML = '<div class="section-title">Planned activities</div>' +
+          '<div class="empty-state">No planned sessions yet. Tap + and choose "Plan an upcoming session".</div>';
+        return;
+      }
+      el.innerHTML = '<div class="section-title">Planned activities <span class="count-pill">' + STATE.planned.length + '</span></div>' +
+        '<div class="activities">' + STATE.planned.map(plannedCardHtml).join('') + '</div>';
+      Array.prototype.forEach.call(el.querySelectorAll('[data-plan-row]'), function (card) {
+        card.addEventListener('click', function () {
+          var row = Number(card.getAttribute('data-plan-row'));
+          var p = STATE.planned.filter(function (x) { return x.row === row; })[0];
+          if (!p) return;
+          openEditSheet({
+            row: p.row, week: p.week, day: p.day, date: p.date,
+            pass1: p.pass1, kommentar1: '', tid1: p.tid1, km1: 0, difficulty1: 'none', typ1: '',
+            pass2: p.pass2, kommentar2: '', tid2: p.tid2, km2: 0, difficulty2: 'none', typ2: ''
+          }, { fromPlanned: true });
+        });
+      });
+    }
+
+    /* ---------- activity feed ---------- */
+    function activityCardHtml(a) {
+      var d = a.date ? new Date(a.date + 'T00:00:00') : null;
+      var dayNum = d ? d.getDate() : '–';
+      var monthName = d ? MONTHS_SHORT[d.getMonth()] : '';
+      var totalKm = (a.km1 || 0) + (a.km2 || 0);
+      var totalTid = (a.tid1 || 0) + (a.tid2 || 0);
+      var title = a.pass1 || a.pass2 || 'Rest';
+
+      var mainDiffKey = a.pass1 ? a.difficulty1 : (a.pass2 ? a.difficulty2 : 'none');
+      var mainColor = diffInfo(mainDiffKey).color;
+      var mainType = a.pass1 ? a.typ1 : a.typ2;
+      var ti = mainType ? typeInfo(mainType) : null;
+      var showSecondDot = a.pass2 && a.pass1 && a.difficulty2 !== a.difficulty1;
+      var paceLabel = (totalKm > 0.05 && totalTid > 0) ? fmtPace(totalTid / totalKm) : '';
+      var routeSvg = routeSparkSvg(a.polyline1 || a.polyline2 || '');
+
+      return '' +
+        '<div class="activity-card" data-row="' + a.row + '" style="border-left-color:' + mainColor + '">' +
+        '<div class="date-badge"><div class="d">' + dayNum + '</div><div class="m">' + monthName + '</div></div>' +
+        '<div class="activity-body">' +
+        '<div class="activity-main">' +
+        (routeSvg ? '<div class="route-spark">' + routeSvg + '</div>' : '') +
+        '<div class="activity-text">' +
+        '<div class="top-row">' + (ti ? '<span class="type-emoji">' + typeIconSvg(ti.key, 20) + '</span>' : '<span class="diff-dot" style="background:' + mainColor + '"></span>') +
+        '<div class="pass-name">' + escapeHtml(title) + '</div>' +
+        '<div class="day-name">' + escapeHtml(a.day) + '</div></div>' +
+        (a.kommentar1 ? '<div class="kommentar">' + escapeHtml(a.kommentar1) + '</div>' : '') +
+        '<div class="chip-row">' +
+        (totalKm > 0 ? '<div class="chip">' + fmtKm(totalKm) + '</div>' : '') +
+        (totalTid > 0 ? '<div class="chip">' + fmtMin(totalTid) + '</div>' : '') +
+        (paceLabel ? '<div class="chip">' + paceLabel + '</div>' : '') +
+        '</div>' +
+        (a.pass2 ? '<div class="pass2-tag">' +
+          (showSecondDot ? '<span class="diff-dot" style="width:6px;height:6px;background:' + diffInfo(a.difficulty2).color + '"></span>' : '') +
+          escapeHtml(a.pass2) + '</div>' : '') +
+        '</div></div></div></div>';
+    }
+
+    function renderActivities() {
+      var el = document.getElementById('activityList');
+      if (!STATE.activities.length) {
+        el.innerHTML = '<div class="empty-state">No logged sessions yet. Tap + to add one.</div>';
+        return;
+      }
+
+      // group the (already most-recent-first) feed into consecutive runs sharing the same week label
+      var groups = [];
+      STATE.activities.forEach(function (a) {
+        var last = groups[groups.length - 1];
+        if (last && last.week === a.week) last.items.push(a);
+        else groups.push({ week: a.week, items: [a] });
+      });
+
+      el.innerHTML = groups.map(function (g) {
+        var totalKm = 0, totalMin = 0;
+        g.items.forEach(function (a) {
+          totalKm += (a.km1 || 0) + (a.km2 || 0);
+          totalMin += (a.tid1 || 0) + (a.tid2 || 0);
+        });
+        var label = g.week ? ('Week ' + g.week) : 'Unknown week';
+        return '<div class="week-group">' +
+          '<div class="week-group-head"><span class="wg-title">' + escapeHtml(String(label)) + '</span>' +
+          '<span class="wg-stats">' + fmtKm(totalKm) + ' · ' + fmtMin(totalMin) + '</span></div>' +
+          '<div class="activities">' + g.items.map(activityCardHtml).join('') + '</div>' +
+          '</div>';
+      }).join('');
+
+      Array.prototype.forEach.call(el.querySelectorAll('.activity-card'), function (card) {
+        card.addEventListener('click', function () { openEditSheet(STATE.byRow[Number(card.getAttribute('data-row'))]); });
+      });
+    }
+
+    /* ---------- training load + goal times (Ai tab) ---------- */
+    function renderLoadGauge() {
+      var el = document.getElementById('aiLoadBody');
+      var load = STATE.load;
+      if (!load) {
+        el.innerHTML = '<div class="load-empty">Needs at least two weeks of data to show load.</div>';
+        return;
+      }
+      var pct = Math.round(load.ratio * 100);
+      var ring = load.ratio > 1.3 ? '#e0655f' : (load.ratio < 0.8 ? '#5a8fc9' : '#77c94f');
+      var desc = load.ratio > 1.3 ? 'Rapid increase — take it easy.' : (load.ratio < 0.8 ? 'Lighter week / recovery.' : 'Stable load.');
+      el.innerHTML =
+        '<div class="load-row">' +
+          '<div class="load-circle-wrap"><div class="load-circle" style="--ring:' + ring + '">' +
+            '<div class="lc-pct">' + pct + '%</div><div class="lc-label">of average</div>' +
+          '</div></div>' +
+          '<div class="load-info">' +
+            '<div class="li-desc">' + escapeHtml(desc) + '</div>' +
+            '<div class="li-detail">Week ' + escapeHtml(String(load.week)) + ': ' + fmtMin(load.currentMin) + ' · avg ' + fmtMin(load.avgPriorMin) + '</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    var GOAL_DISTANCES = [
+      { key: 't3k', label: '3 km', km: 3, ring: '#5a8fc9' },
+      { key: 't5k', label: '5 km', km: 5, ring: '#e8a23a' },
+      { key: 't10k', label: '10 km', km: 10, ring: '#e0655f' }
+    ];
+
+    function renderGoalTimes() {
+      var el = document.getElementById('aiGoalsRow');
+      var goals = STATE.goalTimes || {};
+      el.innerHTML = GOAL_DISTANCES.map(function (g) {
+        var sec = goals[g.key];
+        var inner = sec
+          ? '<div class="gc-time">' + escapeHtml(formatClockSec(sec)) + '</div><div class="gc-pace">' + escapeHtml(fmtPace((sec / g.km) / 60)) + '</div>'
+          : '<div class="gc-empty">+</div>';
+        return '<button type="button" class="goal-tile" data-key="' + g.key + '">' +
+          '<div class="goal-circle" style="--ring:' + g.ring + '">' + inner + '</div>' +
+          '<div class="goal-tile-label">' + escapeHtml(g.label) + '</div>' +
+          '</button>';
+      }).join('');
+      Array.prototype.forEach.call(el.querySelectorAll('.goal-tile'), function (btn) {
+        btn.addEventListener('click', function () { openGoalsSheet(btn.getAttribute('data-key')); });
+      });
+    }
+
+    document.getElementById('aiGoalsEdit').addEventListener('click', function () { openGoalsSheet(null); });
+
+    function openGoalsSheet(focusKey) {
+      var goals = STATE.goalTimes || {};
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>Goals</h2>' +
+        '<div class="sheet-sub">Enter your target time as mm:ss, e.g. 22:30. Leave blank to remove.</div>' +
+        GOAL_DISTANCES.map(function (g) {
+          return '<div class="field-group"><div class="fg-label">' + escapeHtml(g.label) + '</div>' +
+            '<input class="f-input" id="g-' + g.key + '" value="' + (goals[g.key] ? escapeHtml(formatClockSec(goals[g.key])) : '') + '" placeholder="mm:ss"></div>';
+        }).join('') +
+        '<div class="sheet-actions">' +
+        '<button class="btn btn-ghost" id="btnCancelGoals">Cancel</button>' +
+        '<button class="btn btn-primary" id="btnSaveGoals">Save</button>' +
+        '</div>';
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('overlay').classList.add('show');
+      document.getElementById('overlay').addEventListener('click', function (e) { if (e.target.id === 'overlay') closeSheet(); });
+      document.getElementById('btnCancelGoals').addEventListener('click', closeSheet);
+      if (focusKey) { var f = document.getElementById('g-' + focusKey); if (f) f.focus(); }
+      document.getElementById('btnSaveGoals').addEventListener('click', function () {
+        var fields = {};
+        var bad = false;
+        GOAL_DISTANCES.forEach(function (g) {
+          var raw = document.getElementById('g-' + g.key).value.trim();
+          if (!raw) { fields[g.key] = ''; return; }
+          var sec = parseClockToSec(raw);
+          if (sec == null) bad = true;
+          fields[g.key] = sec;
+        });
+        if (bad) { showToast('Enter a time as mm:ss'); return; }
+        var btn = document.getElementById('btnSaveGoals');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        google.script.run
+          .withSuccessHandler(function (updated) {
+            STATE.goalTimes = updated || {};
+            renderGoalTimes();
+            closeSheet();
+            showToast('Goals saved ✓');
+          })
+          .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Save'; showToast(err.message || String(err)); })
+          .saveGoalTimes(fields);
+      });
+    }
+
+    /* ---------- profile (name / club text / picture) — shareable build ---------- */
+    var PENDING_AVATAR; // undefined = unchanged, '' = explicitly removed, data URL = new picture
+
+    function loadProfile() {
+      google.script.run
+        .withSuccessHandler(function (p) {
+          p = p || {};
+          document.getElementById('profileName').textContent = p.name || 'Training Diary';
+          document.getElementById('profileSub').textContent = p.sub || 'Tap here to set your name & picture';
+          var img = document.getElementById('avatarImg');
+          var fallback = document.getElementById('avatarFallback');
+          if (p.avatar) { img.src = p.avatar; img.hidden = false; fallback.hidden = true; }
+          else { img.hidden = true; fallback.hidden = false; }
+        })
+        .withFailureHandler(function () { /* keep the placeholder header */ })
+        .getProfile();
+    }
+
+    document.getElementById('avatarWrap').addEventListener('click', openProfileSheet);
+    document.getElementById('headerNameBtn').addEventListener('click', openProfileSheet);
+
+    function openProfileSheet() {
+      PENDING_AVATAR = undefined;
+      var curName = document.getElementById('profileName').textContent;
+      var curSub = document.getElementById('profileSub').textContent;
+      var hasPic = !document.getElementById('avatarImg').hidden;
+      var curImgSrc = hasPic ? document.getElementById('avatarImg').src : '';
+      var previewHtml = curImgSrc ? '<img src="' + curImgSrc + '">' : '<div class="avatar-fallback" style="width:100%;height:100%;box-shadow:none">🏃</div>';
+
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>Your profile</h2>' +
+        '<div class="sheet-sub">Name and picture are saved in your own copy of the app.</div>' +
+        '<div class="profile-pic-row">' +
+        '<div class="profile-pic-preview" id="ppPreview">' + previewHtml + '</div>' +
+        '<div class="profile-pic-actions">' +
+        '<label class="btn btn-ghost" id="ppFileLabel">Choose picture<input type="file" accept="image/*" id="ppFile" style="display:none"></label>' +
+        '<button type="button" class="btn btn-ghost" id="ppRemove">Remove picture</button>' +
+        '</div>' +
+        '</div>' +
+        '<div class="field-group"><div class="fg-label">Name</div>' +
+        '<input class="f-input" id="pp-name" value="' + escapeHtml(hasPic || curName !== 'Training Diary' ? curName : '') + '" placeholder="Your name"></div>' +
+        '<div class="field-group"><div class="fg-label">Club / subtitle</div>' +
+        '<input class="f-input" id="pp-sub" value="' + escapeHtml(curSub.indexOf('Tap here') === 0 ? '' : curSub) + '" placeholder="E.g. your club"></div>' +
+        '<div class="sheet-actions">' +
+        '<button class="btn btn-ghost" id="btnCancelProfile">Cancel</button>' +
+        '<button class="btn btn-primary" id="btnSaveProfile">Save</button>' +
+        '</div>';
+
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('overlay').classList.add('show');
+      document.getElementById('overlay').addEventListener('click', function (e) { if (e.target.id === 'overlay') closeSheet(); });
+      document.getElementById('btnCancelProfile').addEventListener('click', closeSheet);
+
+      document.getElementById('ppFile').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        if (!file) return;
+        document.getElementById('ppFileLabel').textContent = 'Processing…';
+        resizeImageForAvatar(file, function (dataUrl) {
+          document.getElementById('ppFileLabel').textContent = 'Choose picture';
+          if (!dataUrl) { showToast('Could not read that image — try a different one.'); return; }
+          PENDING_AVATAR = dataUrl;
+          document.getElementById('ppPreview').innerHTML = '<img src="' + dataUrl + '">';
+        });
+      });
+      document.getElementById('ppRemove').addEventListener('click', function () {
+        PENDING_AVATAR = '';
+        document.getElementById('ppPreview').innerHTML = '<div class="avatar-fallback" style="width:100%;height:100%;box-shadow:none">🏃</div>';
+      });
+
+      document.getElementById('btnSaveProfile').addEventListener('click', function () {
+        var fields = {
+          name: document.getElementById('pp-name').value.trim(),
+          sub: document.getElementById('pp-sub').value.trim()
+        };
+        if (typeof PENDING_AVATAR !== 'undefined') fields.avatar = PENDING_AVATAR;
+        var btn = document.getElementById('btnSaveProfile');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        google.script.run
+          .withSuccessHandler(function () { closeSheet(); loadProfile(); showToast('Profile saved ✓'); })
+          .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Save'; showToast(err.message || String(err)); })
+          .saveProfile(fields);
+      });
+    }
+
+    /**
+     * Reads an image file, center-crops it to a square, and shrinks/
+     * compresses it as a JPEG data URL small enough to fit in one Script
+     * Property (9 KB limit) — tries progressively smaller sizes and lower
+     * quality until one fits, so any phone photo works without the user
+     * having to resize it themselves first.
+     */
+    function resizeImageForAvatar(file, cb) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var side = Math.min(img.width, img.height);
+          var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+          var sizes = [200, 140, 100, 72];
+          var qualities = [0.82, 0.6, 0.4];
+          var result = null;
+          for (var s = 0; s < sizes.length && !result; s++) {
+            var canvas = document.createElement('canvas');
+            canvas.width = sizes[s]; canvas.height = sizes[s];
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, sx, sy, side, side, 0, 0, sizes[s], sizes[s]);
+            for (var q = 0; q < qualities.length; q++) {
+              var dataUrl = canvas.toDataURL('image/jpeg', qualities[q]);
+              if (dataUrl.length < 8500) { result = dataUrl; break; }
+            }
+          }
+          cb(result);
+        };
+        img.onerror = function () { cb(null); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function () { cb(null); };
+      reader.readAsDataURL(file);
+    }
+
+    /* ---------- add / plan chooser ---------- */
+    document.getElementById('fabAdd').addEventListener('click', openChooserSheet);
+
+    function openChooserSheet() {
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>What do you want to do?</h2>' +
+        '<div class="sheet-sub">&nbsp;</div>' +
+        '<button class="chooser-btn" id="chooseLog"><span class="icon">✅</span><span><div class="label">Log a completed session</div><div class="desc">Write in a session you already did</div></span></button>' +
+        '<button class="chooser-btn" id="choosePlan"><span class="icon">🗓️</span><span><div class="label">Plan an upcoming session</div><div class="desc">Add an upcoming session to the plan</div></span></button>';
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('overlay').classList.add('show');
+      document.getElementById('chooseLog').addEventListener('click', function () { openDateSheet('log'); });
+      document.getElementById('choosePlan').addEventListener('click', function () { openDateSheet('plan'); });
+      document.getElementById('overlay').addEventListener('click', function (e) { if (e.target.id === 'overlay') closeSheet(); });
+    }
+
+    function openDateSheet(mode) {
+      var min = STATE.bounds.min || '';
+      var max = STATE.bounds.max || '';
+      var def = todayIso();
+      if (min && def < min) def = min;
+      if (max && def > max) def = max;
+
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>' + (mode === 'plan' ? 'Plan session' : 'Log session') + '</h2>' +
+        '<div class="sheet-sub">Choose a date.</div>' +
+        '<div class="field-group"><div class="fg-label">Date</div>' +
+        '<input class="f-input" id="f-newdate" type="date" value="' + def + '"' +
+        (min ? ' min="' + min + '"' : '') + (max ? ' max="' + max + '"' : '') + '>' +
+        '</div>' +
+        '<div class="sheet-actions">' +
+        '<button class="btn btn-ghost" id="btnCancelAdd">Cancel</button>' +
+        '<button class="btn btn-primary" id="btnContinueAdd">Continue</button>' +
+        '</div>';
+
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('btnCancelAdd').addEventListener('click', closeSheet);
+      document.getElementById('btnContinueAdd').addEventListener('click', function () {
+        var dateIso = document.getElementById('f-newdate').value;
+        if (!dateIso) return;
+        var btn = document.getElementById('btnContinueAdd');
+        btn.disabled = true; btn.textContent = 'Fetching…';
+        if (mode === 'plan') {
+          google.script.run
+            .withSuccessHandler(function (plan) { openPlanSheet(plan, dateIso); })
+            .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Continue'; showToast(err.message || String(err)); })
+            .getOrInitPlanForDate(dateIso);
+        } else {
+          google.script.run
+            .withSuccessHandler(function (activity) { openEditSheet(activity); })
+            .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Continue'; showToast(err.message || String(err)); })
+            .getActivityForDate(dateIso);
+        }
+      });
+    }
+
+    function openPlanSheet(plan, dateIso) {
+      var d = new Date(dateIso + 'T00:00:00');
+      var dateLabel = d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()];
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>Plan · ' + dateLabel + '</h2>' +
+        '<div class="sheet-sub">Saved to your plan.</div>' +
+        '<div class="field-group"><div class="fg-label">Session 1</div>' +
+        '<input class="f-input" id="p-pass1" value="' + escapeHtml(plan.pass1) + '" placeholder="E.g. Long run"></div>' +
+        '<div class="field-group"><div class="fg-label">Time (min)</div>' +
+        '<input class="f-input" id="p-tid1" type="number" inputmode="decimal" value="' + (plan.tid1 || '') + '" placeholder="0"></div>' +
+        '<div class="pass-block">' +
+        '<div class="pass-block-title">Session 2 (optional)</div>' +
+        '<div class="field-group"><div class="fg-label">Session 2</div>' +
+        '<input class="f-input" id="p-pass2" value="' + escapeHtml(plan.pass2) + '" placeholder="E.g. Strength"></div>' +
+        '<div class="field-group" style="margin-bottom:0"><div class="fg-label">Time (min)</div>' +
+        '<input class="f-input" id="p-tid2" type="number" inputmode="decimal" value="' + (plan.tid2 || '') + '" placeholder="0"></div>' +
+        '</div>' +
+        '<div class="sheet-actions">' +
+        '<button class="btn btn-ghost" id="btnCancelPlan">Cancel</button>' +
+        '<button class="btn btn-primary" id="btnSavePlan">Save plan</button>' +
+        '</div>';
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('btnCancelPlan').addEventListener('click', closeSheet);
+      document.getElementById('btnSavePlan').addEventListener('click', function () {
+        var fields = {
+          pass1: document.getElementById('p-pass1').value,
+          tid1: document.getElementById('p-tid1').value,
+          pass2: document.getElementById('p-pass2').value,
+          tid2: document.getElementById('p-tid2').value
+        };
+        var btn = document.getElementById('btnSavePlan');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        google.script.run
+          .withSuccessHandler(function () {
+            closeSheet();
+            showToast('Plan saved ✓');
+            load(false);
+          })
+          .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Save plan'; showToast(err.message || String(err)); })
+          .savePlan(plan.row, fields);
+      });
+    }
+
+    /* ---------- edit / view activity ---------- */
+    function swatchesHtml(name, selectedKey) {
+      var list = STATE.difficulties.length ? STATE.difficulties : DEFAULT_DIFFICULTIES;
+      return '<div class="swatch-row">' + list.map(function (d) {
+        var isNone = d.key === 'none';
+        var sel = d.key === selectedKey ? ' selected' : '';
+        return '<div class="swatch-wrap">' +
+          '<button type="button" class="swatch' + (isNone ? ' swatch-none' : '') + sel +
+          '" data-field="' + name + '" data-key="' + d.key + '" style="background:' + d.color + '"></button>' +
+          '<div class="swatch-label">' + d.label + '</div></div>';
+      }).join('') + '</div>';
+    }
+
+    function typeButtonsHtml(name, selectedKey) {
+      var list = STATE.activityTypes.length ? STATE.activityTypes : DEFAULT_TYPES;
+      return '<div class="swatch-row">' + list.map(function (t) {
+        var sel = t.key === selectedKey ? ' selected' : '';
+        return '<div class="swatch-wrap">' +
+          '<button type="button" class="type-btn' + sel + '" data-field="' + name + '" data-key="' + t.key + '">' + typeIconSvg(t.key, 22) + '</button>' +
+          '<div class="swatch-label">' + t.label + '</div></div>';
+      }).join('') + '</div>';
+    }
+
+    function openEditSheet(a, opts) {
+      if (!a) return;
+      opts = opts || {};
+      var d = a.date ? new Date(a.date + 'T00:00:00') : null;
+      var dateLabel = d ? (d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear()) : '';
+      var isEmpty = !a.pass1 && !a.kommentar1 && !a.pass2 && !a.kommentar2;
+
+      var html = '' +
+        '<div class="sheet-handle"></div>' +
+        '<h2>' + escapeHtml(a.day) + (dateLabel ? ' · ' + dateLabel : '') + '</h2>' +
+        '<div class="sheet-sub">' + (opts.fromPlanned ? 'From your plan &mdash; ' : (isEmpty ? 'New activity &mdash; ' : '')) + 'Saved directly to your Google Sheet.</div>' +
+
+        '<div class="field-group" id="strava-block-pass1">' + stravaBlockHtml(a, 'pass1') + '</div>' +
+        '<div class="field-group"><div class="fg-label">Session 1</div>' +
+        '<input class="f-input" id="f-pass1" value="' + escapeHtml(a.pass1) + '" placeholder="E.g. Running session, intervals...">' +
+        '</div>' +
+        '<div class="field-group"><div class="fg-label">Comment (session 1)</div>' +
+        '<textarea class="f-input" id="f-kommentar1" placeholder="How did the session feel?">' + escapeHtml(a.kommentar1) + '</textarea>' +
+        '</div>' +
+        '<div class="row-2">' +
+        '<div class="field-group"><div class="fg-label">Time (min)</div>' +
+        '<input class="f-input" id="f-tid1" type="number" inputmode="decimal" value="' + (a.tid1 || '') + '" placeholder="0"></div>' +
+        '<div class="field-group"><div class="fg-label">Km</div>' +
+        '<input class="f-input" id="f-km1" type="number" inputmode="decimal" step="0.1" value="' + (a.km1 || '') + '" placeholder="0"></div>' +
+        '</div>' +
+        '<div class="pace-hint" id="pace-hint1"></div>' +
+        '<div class="field-group"><div class="fg-label">Activity type</div>' + typeButtonsHtml('typ1', a.typ1) + '</div>' +
+        '<div class="field-group"><div class="fg-label">Difficulty</div>' + swatchesHtml('difficulty1', a.difficulty1) + '</div>' +
+
+        '<div class="pass-block">' +
+        '<div class="pass-block-title">Session 2 (e.g. strength)</div>' +
+        '<div class="field-group" id="strava-block-pass2">' + stravaBlockHtml(a, 'pass2') + '</div>' +
+        '<div class="field-group"><div class="fg-label">Session 2</div>' +
+        '<input class="f-input" id="f-pass2" value="' + escapeHtml(a.pass2) + '" placeholder="E.g. Strength + mobility">' +
+        '</div>' +
+        '<div class="field-group"><div class="fg-label">Comment (session 2)</div>' +
+        '<textarea class="f-input" id="f-kommentar2" placeholder="Comment for session 2">' + escapeHtml(a.kommentar2) + '</textarea>' +
+        '</div>' +
+        '<div class="row-2">' +
+        '<div class="field-group"><div class="fg-label">Time (min)</div>' +
+        '<input class="f-input" id="f-tid2" type="number" inputmode="decimal" value="' + (a.tid2 || '') + '" placeholder="0"></div>' +
+        '<div class="field-group"><div class="fg-label">Km</div>' +
+        '<input class="f-input" id="f-km2" type="number" inputmode="decimal" step="0.1" value="' + (a.km2 || '') + '" placeholder="0"></div>' +
+        '</div>' +
+        '<div class="pace-hint" id="pace-hint2"></div>' +
+        '<div class="field-group"><div class="fg-label">Activity type</div>' + typeButtonsHtml('typ2', a.typ2) + '</div>' +
+        '<div class="field-group" style="margin-bottom:0"><div class="fg-label">Difficulty</div>' + swatchesHtml('difficulty2', a.difficulty2) + '</div>' +
+        '</div>' +
+
+        '<div class="sheet-actions' + (opts.fromPlanned ? ' compact' : '') + '">' +
+        (!isEmpty && !opts.fromPlanned ? '<button class="btn btn-danger" id="btnDelete" title="Delete activity">Delete</button>' : '') +
+        '<button class="btn btn-ghost" id="btnCancel">Cancel</button>' +
+        (opts.fromPlanned ? '<button class="btn btn-ghost" id="btnKeepPlanned" title="Edit the plan without logging the session as done">Save plan</button>' : '') +
+        '<button class="btn btn-primary" id="btnSave" title="' + (opts.fromPlanned ? 'Log the session as done' : 'Save') + '">' + (opts.fromPlanned ? 'Mark done' : 'Save') + '</button>' +
+        '</div>';
+
+      document.getElementById('sheet').innerHTML = html;
+      document.getElementById('overlay').classList.add('show');
+
+      var selected = { difficulty1: a.difficulty1, difficulty2: a.difficulty2, typ1: a.typ1, typ2: a.typ2 };
+      Array.prototype.forEach.call(document.querySelectorAll('.swatch, .type-btn'), function (sw) {
+        sw.addEventListener('click', function () {
+          var field = sw.getAttribute('data-field');
+          selected[field] = sw.getAttribute('data-key');
+          Array.prototype.forEach.call(document.querySelectorAll('[data-field="' + field + '"]'), function (s) {
+            s.classList.toggle('selected', s === sw);
+          });
+        });
+      });
+
+      document.getElementById('btnCancel').addEventListener('click', closeSheet);
+      document.getElementById('overlay').addEventListener('click', function (e) { if (e.target.id === 'overlay') closeSheet(); });
+      document.getElementById('btnSave').addEventListener('click', function () { saveSheet(a.row, selected, opts); });
+      var delBtn = document.getElementById('btnDelete');
+      if (delBtn) delBtn.addEventListener('click', function () { deleteSheet(a.row); });
+      var keepPlannedBtn = document.getElementById('btnKeepPlanned');
+      if (keepPlannedBtn) keepPlannedBtn.addEventListener('click', function () { savePlannedEdits(a.row); });
+
+      wireStravaBlock('pass1', a);
+      wireStravaBlock('pass2', a);
+
+      // A live pace readout under each pass's time/km fields — handy when
+      // checking a day's numbers, and updates as you correct them.
+      ['1', '2'].forEach(function (n) {
+        var tidEl = document.getElementById('f-tid' + n), kmEl = document.getElementById('f-km' + n);
+        var hintEl = document.getElementById('pace-hint' + n);
+        function update() {
+          var tid = Number(tidEl.value) || 0, km = Number(kmEl.value) || 0;
+          hintEl.textContent = km > 0.05 && tid > 0 ? 'Pace: ' + fmtPace(tid / km) : '';
+        }
+        tidEl.addEventListener('input', update);
+        kmEl.addEventListener('input', update);
+        update();
+      });
+    }
+
+    /* ---------- Strava import ---------- */
+    function stravaBlockHtml(a, which) {
+      var stravaId = which === 'pass1' ? a.stravaId1 : a.stravaId2;
+      var polyline = which === 'pass1' ? a.polyline1 : a.polyline2;
+      if (stravaId) {
+        return '<div class="strava-linked">🔶 Linked Strava session' +
+          '<button type="button" class="unlink-btn" id="strava-unlink-' + which + '">Remove link</button></div>' +
+          (polyline ? '<div class="strava-map" id="strava-map-' + which + '"></div>' : '');
+      }
+      return '<button type="button" class="strava-btn" id="strava-btn-' + which + '">🔶 Get from Strava</button>' +
+        '<div class="strava-picker" id="strava-picker-' + which + '" hidden></div>';
+    }
+
+    function wireStravaBlock(which, a) {
+      var stravaId = which === 'pass1' ? a.stravaId1 : a.stravaId2;
+      var polyline = which === 'pass1' ? a.polyline1 : a.polyline2;
+      if (stravaId) {
+        var mapEl = document.getElementById('strava-map-' + which);
+        if (mapEl && polyline && window.L) {
+          try {
+            var pts = decodePolyline(polyline);
+            var map = L.map(mapEl, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, tap: false });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+            var line = L.polyline(pts, { color: '#fc4c02', weight: 4 }).addTo(map);
+            map.fitBounds(line.getBounds(), { padding: [16, 16] });
+          } catch (e) { /* map is a nice-to-have — never block the sheet on it */ }
+        }
+        var unlinkBtn = document.getElementById('strava-unlink-' + which);
+        if (unlinkBtn) {
+          unlinkBtn.addEventListener('click', function () {
+            if (!confirm('Remove the Strava link for this session? Time and km stay the same.')) return;
+            google.script.run
+              .withSuccessHandler(function () {
+                if (which === 'pass1') { a.stravaId1 = ''; a.polyline1 = ''; } else { a.stravaId2 = ''; a.polyline2 = ''; }
+                var wrap = document.getElementById('strava-block-' + which);
+                wrap.innerHTML = stravaBlockHtml(a, which);
+                wireStravaBlock(which, a);
+              })
+              .withFailureHandler(function (err) { showToast('Could not remove the link: ' + (err.message || err)); })
+              .unlinkStrava(a.row, which);
+          });
+        }
+      } else {
+        var btn = document.getElementById('strava-btn-' + which);
+        if (btn) btn.addEventListener('click', function () { openStravaPicker(which, a); });
+      }
+    }
+
+    function openStravaPicker(which, a) {
+      var pickerEl = document.getElementById('strava-picker-' + which);
+      var btn = document.getElementById('strava-btn-' + which);
+      btn.disabled = true; btn.textContent = 'Fetching…';
+      pickerEl.hidden = false;
+      pickerEl.innerHTML = '<div class="loading-state">Checking Strava connection…</div>';
+
+      google.script.run
+        .withSuccessHandler(function (connected) {
+          if (!connected) {
+            google.script.run
+              .withSuccessHandler(function (url) {
+                pickerEl.innerHTML =
+                  '<div class="empty-state">Strava isn\'t connected yet.</div>' +
+                  '<button type="button" class="strava-btn" id="strava-connect-' + which + '">🔶 Connect to Strava</button>';
+                document.getElementById('strava-connect-' + which).addEventListener('click', function () {
+                  window.open(url, '_blank');
+                  pickerEl.innerHTML = '<div class="empty-state">Connect in the new tab, then come back here and tap “Get from Strava” again.</div>';
+                });
+                btn.disabled = false; btn.textContent = '🔶 Get from Strava';
+              })
+              .withFailureHandler(function (err) {
+                pickerEl.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+                btn.disabled = false; btn.textContent = '🔶 Get from Strava';
+              })
+              .getStravaAuthUrl();
+            return;
+          }
+          pickerEl.innerHTML = '<div class="loading-state">Fetching activities…</div>';
+          google.script.run
+            .withSuccessHandler(function (activities) {
+              btn.disabled = false; btn.textContent = '🔶 Get from Strava';
+              renderStravaPicker(which, a, activities);
+            })
+            .withFailureHandler(function (err) {
+              btn.disabled = false; btn.textContent = '🔶 Get from Strava';
+              pickerEl.innerHTML = '<div class="empty-state">Could not fetch: ' + escapeHtml(err.message || String(err)) + '</div>';
+            })
+            .listStravaActivitiesForDate(a.date);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false; btn.textContent = '🔶 Get from Strava';
+          pickerEl.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+        })
+        .isStravaConnected();
+    }
+
+    function renderStravaPicker(which, a, activities) {
+      var pickerEl = document.getElementById('strava-picker-' + which);
+      if (!activities.length) {
+        pickerEl.innerHTML = '<div class="empty-state">No Strava activities found for that day.</div>' +
+          '<button type="button" class="strava-cancel" id="strava-cancel-' + which + '">Close</button>';
+        document.getElementById('strava-cancel-' + which).addEventListener('click', function () { pickerEl.hidden = true; pickerEl.innerHTML = ''; });
+        return;
+      }
+      pickerEl.innerHTML = activities.map(function (act, i) {
+        var timeLabel = act.startLocal ? act.startLocal.slice(11, 16) : '';
+        var pace = act.distanceKm > 0.05 ? fmtPace(act.movingMin / act.distanceKm) : '';
+        return '<button type="button" class="strava-pick-card" data-idx="' + i + '">' +
+          '<div class="sp-name">' + escapeHtml(act.name) + '</div>' +
+          '<div class="sp-meta">' + timeLabel + ' · ' + act.distanceKm.toString().replace('.', ',') + ' km · ' + fmtMin(act.movingMin) + (pace ? ' · ' + pace : '') + '</div>' +
+          '</button>';
+      }).join('') + '<button type="button" class="strava-cancel" id="strava-cancel-' + which + '">Cancel</button>';
+
+      Array.prototype.forEach.call(pickerEl.querySelectorAll('.strava-pick-card'), function (card) {
+        card.addEventListener('click', function () {
+          importStravaChoice(which, a, activities[Number(card.getAttribute('data-idx'))]);
+        });
+      });
+      document.getElementById('strava-cancel-' + which).addEventListener('click', function () { pickerEl.hidden = true; pickerEl.innerHTML = ''; });
+    }
+
+    function importStravaChoice(which, a, act) {
+      var pickerEl = document.getElementById('strava-picker-' + which);
+      pickerEl.innerHTML = '<div class="loading-state">Importing…</div>';
+      var n = which.slice(-1); // '1' or '2'
+      google.script.run
+        .withSuccessHandler(function (updated) {
+          Object.assign(a, updated);
+          var passInput = document.getElementById('f-' + which);
+          if (passInput) passInput.value = updated[which] || '';
+          var tidInput = document.getElementById('f-tid' + n);
+          if (tidInput) tidInput.value = updated['tid' + n] || '';
+          var kmInput = document.getElementById('f-km' + n);
+          if (kmInput) kmInput.value = updated['km' + n] || '';
+          var typKey = updated['typ' + n];
+          if (typKey) {
+            Array.prototype.forEach.call(document.querySelectorAll('[data-field="typ' + n + '"]'), function (b) {
+              b.classList.toggle('selected', b.getAttribute('data-key') === typKey);
+            });
+          }
+          var wrap = document.getElementById('strava-block-' + which);
+          wrap.innerHTML = stravaBlockHtml(updated, which);
+          wireStravaBlock(which, updated);
+          showToast('Imported from Strava ✓');
+        })
+        .withFailureHandler(function (err) {
+          pickerEl.innerHTML = '<div class="empty-state">Could not import: ' + escapeHtml(err.message || String(err)) + '</div>';
+        })
+        .importStravaIntoActivity(a.row, which, act);
+    }
+
+    function deleteSheet(row) {
+      if (!confirm('Delete this activity? This can\'t be undone.')) return;
+      var delBtn = document.getElementById('btnDelete');
+      if (delBtn) { delBtn.disabled = true; delBtn.textContent = 'Deleting…'; }
+
+      google.script.run
+        .withSuccessHandler(function () {
+          delete STATE.byRow[row];
+          STATE.activities = STATE.activities.filter(function (x) { return x.row !== row; });
+          renderActivities();
+          closeSheet();
+          showToast('Deleted ✓');
+          load(false); // pick up updated weekly/7-day/month totals
+        })
+        .withFailureHandler(function (err) {
+          if (delBtn) { delBtn.disabled = false; delBtn.textContent = 'Delete'; }
+          showToast('Could not delete: ' + (err.message || err));
+        })
+        .deleteActivity(row);
+    }
+
+    function closeSheet() {
+      document.getElementById('overlay').classList.remove('show');
+    }
+
+    function insertIntoActivities(a) {
+      var idx = STATE.activities.findIndex(function (x) { return a.date > x.date; });
+      if (idx === -1) STATE.activities.push(a); else STATE.activities.splice(idx, 0, a);
+    }
+
+    function saveSheet(row, selectedDifficulties, opts) {
+      opts = opts || {};
+      var fields = {
+        pass1: document.getElementById('f-pass1').value,
+        kommentar1: document.getElementById('f-kommentar1').value,
+        tid1: document.getElementById('f-tid1').value,
+        km1: document.getElementById('f-km1').value,
+        difficulty1: selectedDifficulties.difficulty1,
+        typ1: selectedDifficulties.typ1,
+        pass2: document.getElementById('f-pass2').value,
+        kommentar2: document.getElementById('f-kommentar2').value,
+        tid2: document.getElementById('f-tid2').value,
+        km2: document.getElementById('f-km2').value,
+        difficulty2: selectedDifficulties.difficulty2,
+        typ2: selectedDifficulties.typ2
+      };
+      var btn = document.getElementById('btnSave');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      google.script.run
+        .withSuccessHandler(function () {
+          var wasNew = !STATE.byRow[row];
+          var a = STATE.byRow[row] || { row: row };
+          Object.assign(a, fields);
+          a.tid1 = Number(fields.tid1) || 0; a.km1 = Number(fields.km1) || 0;
+          a.tid2 = Number(fields.tid2) || 0; a.km2 = Number(fields.km2) || 0;
+          STATE.byRow[row] = a;
+          var hasContent = a.pass1 || a.kommentar1 || a.pass2 || a.kommentar2;
+          if (wasNew && hasContent) insertIntoActivities(a);
+          if (opts.fromPlanned) STATE.planned = STATE.planned.filter(function (p) { return p.row !== row; });
+          renderActivities();
+          renderPlanned();
+          closeSheet();
+          showToast('Saved to your Google Sheet ✓');
+          load(false); // pick up any weekly/7-day/month totals that just changed
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          showToast('Could not save: ' + (err.message || err));
+        })
+        .saveActivity(row, fields);
+    }
+
+    /**
+     * The other option when editing a planned activity: update the plan
+     * itself (pass names + times) in Planeringsbok, same as the "Plan an
+     * upcoming session" flow uses, and leave it exactly as planned — the diary
+     * row is never touched, so it keeps showing up under Planned instead
+     * of turning into a logged activity.
+     */
+    function savePlannedEdits(row) {
+      var fields = {
+        pass1: document.getElementById('f-pass1').value,
+        tid1: document.getElementById('f-tid1').value,
+        pass2: document.getElementById('f-pass2').value,
+        tid2: document.getElementById('f-tid2').value
+      };
+      var btn = document.getElementById('btnKeepPlanned');
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      google.script.run
+        .withSuccessHandler(function () {
+          var p = STATE.planned.filter(function (x) { return x.row === row; })[0];
+          if (p) {
+            p.pass1 = fields.pass1; p.tid1 = Number(fields.tid1) || 0;
+            p.pass2 = fields.pass2; p.tid2 = Number(fields.tid2) || 0;
+          }
+          renderPlanned();
+          closeSheet();
+          showToast('Plan updated ✓');
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false; btn.textContent = 'Save as plan';
+          showToast('Could not save: ' + (err.message || err));
+        })
+        .savePlan(row, fields);
+    }
+
+    /* ---------- AI recommendation (Gemini) ---------- */
+    function loadAiTip(force) {
+      var body = document.getElementById('aiTipBody');
+      var btn = document.getElementById('aiTipRefresh');
+      if (body.getAttribute('data-loaded') === '1' && !force) return;
+      body.className = 'ai-tip-body dim';
+      body.textContent = 'Loading…';
+      btn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          body.setAttribute('data-loaded', '1');
+          if (res && res.text) {
+            body.className = 'ai-tip-body';
+            body.textContent = res.text;
+          } else {
+            body.className = 'ai-tip-body dim';
+            body.textContent = (res && res.error) || "Could not fetch a recommendation right now.";
+          }
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          body.className = 'ai-tip-body dim';
+          body.textContent = "Could not fetch a recommendation: " + (err.message || err);
+        })
+        .getTrainingRecommendation(!!force);
+    }
+    document.getElementById('aiTipRefresh').addEventListener('click', function () { loadAiTip(true); });
+
+    /* ---------- 7-day plan (AI) + follow-up questions ---------- */
+    var AI_CHAT_HISTORY = []; // in-memory only for this page load: [{role:'user'|'model', text}]
+
+    function loadAiWeekPlan(force) {
+      var list = document.getElementById('aiWeekList');
+      var btn = document.getElementById('aiWeekRefresh');
+      if (list.getAttribute('data-loaded') === '1' && !force) return;
+      list.innerHTML = '<div class="ai-tip-body dim">Loading…</div>';
+      btn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          list.setAttribute('data-loaded', '1');
+          renderAiWeekPlan(res);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          list.innerHTML = '<div class="ai-tip-body dim">Could not fetch the plan: ' + escapeHtml(err.message || String(err)) + '</div>';
+        })
+        .getWeeklyAiPlan(!!force);
+    }
+
+    function renderAiWeekPlan(res) {
+      var list = document.getElementById('aiWeekList');
+      if (!res || !res.days || !res.days.length) {
+        list.innerHTML = '<div class="ai-tip-body dim">' + escapeHtml((res && res.error) || "Could not get a plan right now.") + '</div>';
+        return;
+      }
+      list.innerHTML = res.days.map(function (d) {
+        var color = diffInfo(d.intensity).color;
+        return '' +
+          '<div class="ai-week-row" style="border-left-color:' + color + '">' +
+          '<div class="awr-day">' + escapeHtml(d.day || '') + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+          '<div class="awr-focus">' + escapeHtml(d.focus || '') + '</div>' +
+          (d.why ? '<div class="awr-why">' + escapeHtml(d.why) + '</div>' : '') +
+          '</div></div>';
+      }).join('');
+    }
+
+    document.getElementById('aiWeekRefresh').addEventListener('click', function () { loadAiWeekPlan(true); });
+
+    function addChatBubble(role, text) {
+      var log = document.getElementById('aiChatLog');
+      var div = document.createElement('div');
+      div.className = 'ai-chat-msg ' + (role === 'user' ? 'q' : 'a');
+      div.textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function sendAiChatQuestion() {
+      var input = document.getElementById('aiChatInput');
+      var sendBtn = document.getElementById('aiChatSend');
+      var question = input.value.trim();
+      if (!question) return;
+      addChatBubble('user', question);
+      input.value = '';
+      sendBtn.disabled = true;
+      var historyJson = JSON.stringify(AI_CHAT_HISTORY);
+      google.script.run
+        .withSuccessHandler(function (res) {
+          sendBtn.disabled = false;
+          if (res && res.text) {
+            addChatBubble('model', res.text);
+            AI_CHAT_HISTORY.push({ role: 'user', text: question });
+            AI_CHAT_HISTORY.push({ role: 'model', text: res.text });
+            // keep the last ~6 turns so the prompt doesn't grow without bound
+            if (AI_CHAT_HISTORY.length > 12) AI_CHAT_HISTORY = AI_CHAT_HISTORY.slice(-12);
+          } else {
+            addChatBubble('model', (res && res.error) || "Could not answer right now.");
+          }
+        })
+        .withFailureHandler(function (err) {
+          sendBtn.disabled = false;
+          addChatBubble('model', "Could not answer: " + (err.message || err));
+        })
+        .askAiTrainingQuestion(question, historyJson);
+    }
+    document.getElementById('aiChatSend').addEventListener('click', sendAiChatQuestion);
+    document.getElementById('aiChatInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); sendAiChatQuestion(); }
+    });
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(function () { t.classList.remove('show'); }, 2400);
+    }
+
+    /**
+     * Silently checks Strava for recent activities and imports any new ones
+     * straight into the diary, so Activities already has them next time it
+     * loads — no "Get from Strava" tap needed. Runs once when the app
+     * opens and again on a manual refresh; never shown as an error if
+     * Strava isn't connected yet, since this isn't something the user
+     * explicitly asked for in the moment.
+     */
+    function autoImportStrava() {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.imported > 0) {
+            showToast(res.imported === 1 ? 'One session imported from Strava ✓' : res.imported + ' sessions imported from Strava ✓');
+            load(false);
+          }
+        })
+        .withFailureHandler(function () { /* quiet — e.g. Strava not connected yet */ })
+        .autoImportStravaActivities(10);
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', function () { load(true); });
+
+    load(false);
+    loadProfile();
+    autoImportStrava();
+  </script>
+</div>
+</body>
+</html>
