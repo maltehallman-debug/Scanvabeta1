@@ -451,11 +451,7 @@
         </ul>
         <button class="btn btn-primary" id="openModalProBtn">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0-4-4m4 4 4-4M5 21h14"/></svg>
-          Download Pro
-        </button>
-        <button class="btn btn-ghost" id="openAutoProBtn" type="button">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
-          Set up Pro for me
+          Download Pro Upgrade
         </button>
         <div class="pro-tagline">Longer setup, pro results.</div>
       </div>
@@ -882,7 +878,7 @@
       <div class="wiz-step" data-flavor="upgrade" data-step="0">
         <span class="wiz-eyebrow">Control 1 of 7</span>
         <h3>Open your existing project</h3>
-        <p>Go to <span class="k">script.google.com</span>, and open the project automatic setup already created for you &mdash; it's named <span class="k">Scanva</span> (or <span class="k">Scanva Pro</span> if you named it yourself). Open <span class="k">Code.gs</span> in the editor.</p>
+        <p>Open <a href="https://script.google.com/home" target="_blank" rel="noopener" class="k">script.google.com/home</a> &mdash; the project quick install already created is right there in your list, named <span class="k">Scanva</span>. Open it, then open <span class="k">Code.gs</span> in the editor.</p>
         <div class="wiz-illus"><svg viewBox="0 0 340 190"><g>
           <rect x="20" y="16" width="300" height="150" rx="8" fill="var(--white-flag)" stroke="var(--line)" stroke-width="2"/>
           <rect x="20" y="16" width="300" height="28" rx="8" fill="var(--orange-dim)"/>
@@ -971,7 +967,7 @@
       <div class="wiz-step" data-flavor="upgrade" data-step="5">
         <span class="wiz-eyebrow">Control 6 of 7</span>
         <h3>Replace Code.gs and Index.html</h3>
-        <p>Select everything in <span class="k">Code.gs</span>, delete it, and paste in Scanva Pro's version from the next screen &mdash; then copy the <span class="k">SHEET_ID</span> line from your <em>current</em> Code.gs into the new one first, so it still points at your spreadsheet. Do the same for <span class="k">Index.html</span> (add it as a new HTML file named exactly <span class="k">Index</span> if you don't already have one).</p>
+        <p>Select everything in <span class="k">Code.gs</span>, delete it, and paste in Scanva Pro's version from the next screen. Then press <span class="k">Ctrl+F</span> (or <span class="k">Cmd+F</span>), search for <span class="k">PASTE_YOUR_SHEET_ID_HERE</span>, and replace it with your spreadsheet's file ID &mdash; the same one your current Scanva already uses. Do the same for <span class="k">Index.html</span> (add it as a new HTML file named exactly <span class="k">Index</span> if you don't already have one).</p>
         <div class="wiz-illus"><svg viewBox="0 0 340 190"><g>
           <rect x="20" y="16" width="300" height="150" rx="8" fill="#16201a" stroke="var(--code-line)" stroke-width="2"/>
           <g fill="#5c7a53"><rect x="36" y="34" width="120" height="8" rx="2"/><rect x="36" y="50" width="180" height="8" rx="2"/><rect x="36" y="66" width="90" height="8" rx="2"/></g>
@@ -1152,7 +1148,7 @@
     document.body.style.overflow = '';
   }
   document.getElementById('openManualBtn').addEventListener('click', function () { openModal('free'); });
-  document.getElementById('openModalProBtn').addEventListener('click', function () { openModal('pro'); });
+  document.getElementById('openModalProBtn').addEventListener('click', function () { openModal('upgrade'); });
   document.getElementById('openUpgradeBtn').addEventListener('click', function () { openModal('upgrade'); });
   window.openModal = openModal;
   document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -1421,8 +1417,6 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && scrim.classList.contains('show')) closeAuto(); });
 
   document.getElementById('openModalBtn').addEventListener('click', function () { openAuto('free'); });
-  var proBtn = document.getElementById('openAutoProBtn');
-  if (proBtn) proBtn.addEventListener('click', function () { openAuto('pro'); });
 })();
 </script>
 
