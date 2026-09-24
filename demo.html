@@ -3296,6 +3296,17 @@
       var heading = sheetEl.querySelector('h2');
       if (heading) { heading.id = heading.id || 'sheetTitle'; sheetEl.setAttribute('aria-labelledby', heading.id); }
       else sheetEl.removeAttribute('aria-labelledby');
+      // Tie each visible field label to its input (or button group) so
+      // screen readers announce it.
+      Array.prototype.forEach.call(sheetEl.querySelectorAll('.field-group'), function (g, i) {
+        var lab = g.querySelector('.fg-label');
+        if (!lab) return;
+        lab.id = lab.id || 'fgLabel' + i;
+        var ctl = g.querySelector('input:not([type=hidden]):not([type=file]), textarea, select');
+        if (ctl) { ctl.setAttribute('aria-labelledby', lab.id); return; }
+        var row = g.querySelector('.swatch-row');
+        if (row) { row.setAttribute('role', 'group'); row.setAttribute('aria-labelledby', lab.id); }
+      });
       setTimeout(function () { if (ov.classList.contains('show')) sheetEl.focus({ preventScroll: true }); }, 30);
       clearTimeout(SHEET_CLOSE_TIMER);
       ov.classList.remove('closing');
