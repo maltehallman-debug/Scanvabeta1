@@ -49,7 +49,7 @@
       --line-strong: rgba(255, 255, 255, 0.13);
       --text: #f3f2ed;
       --text-dim: #a1a59c;
-      --text-faint: #6b6f67;
+      --text-faint: #8b8f86; /* ≥ 4.5:1 on every surface (WCAG AA) */
       --accent: #ff5b1f;
       --accent-hi: #ff7a45;
       --accent-ink: #140903;
@@ -1635,7 +1635,7 @@
       }
       var selPt = pts[selIdx];
 
-      var LINE_COLOR = 'rgba(255,255,255,0.06)', LABEL_COLOR = '#6b6f67';
+      var LINE_COLOR = 'rgba(255,255,255,0.06)', LABEL_COLOR = '#8b8f86';
       var gridLines = [0, axisMid, axisMax].map(function (v) {
         var y = yFor(v);
         return '<line x1="' + gutterW + '" y1="' + y.toFixed(1) + '" x2="' + (gutterW + plotW).toFixed(1) + '" y2="' + y.toFixed(1) +
