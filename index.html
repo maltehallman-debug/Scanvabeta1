@@ -631,7 +631,7 @@
       <div>
         <div class="pill" data-reveal><span class="pill-tag">Free</span>Runs on Google Apps Script + your own Sheet</div>
         <h1 data-reveal style="--d:60ms">Your training log, <span class="soft">on the spreadsheet you already own.</span></h1>
-        <p class="hero-lede" data-reveal style="--d:120ms">Scanva turns your training-diary spreadsheet into a fast, phone-first app for logging, planning, a month at a glance and weekly trends. There's no server, no account and no app store, so your data never leaves your own Google account.</p>
+        <p class="hero-lede" data-reveal style="--d:120ms">Scanva turns your training-diary spreadsheet into a fast, phone-first app for logging, planning, a month at a glance and weekly trends. There's no server, no account and no app store. Your diary stays in a spreadsheet in your own Google account.</p>
         <div class="hero-actions" data-reveal style="--d:180ms">
           <button class="btn btn-primary" id="openModalBtn" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
@@ -862,7 +862,7 @@
           <p class="plan-desc">The same app with a fully unlocked AI tab and a real Strava connection.</p>
           <ul class="plan-list">
             <li>Everything in Free, fully unlocked</li>
-            <li>Daily tip, load number, goal times, a 7-day plan and chat, powered by your own free Gemini API key</li>
+            <li>Daily tip, load number, goal times, a 7-day plan and chat, powered by your own free Gemini API key (your recent training is sent to Google's Gemini API)</li>
             <li>"Get from Strava" wired to your own free Strava API app</li>
           </ul>
           <div class="plan-foot">
@@ -906,7 +906,7 @@
       <div class="faq" data-reveal style="--d:80ms">
         <details>
           <summary>Where is my training data stored?</summary>
-          <div class="answer"><p>In your own spreadsheet, in your own Google account. Scanva runs as an Apps Script project under your account and reads and writes that file directly. There's no Scanva server and nothing is copied anywhere else.</p></div>
+          <div class="answer"><p>In your own spreadsheet, in your own Google account. Scanva runs as an Apps Script project under your account and reads and writes that file directly, and there's no Scanva server in between. If you use Pro, its AI features send your recent training to Google's Gemini API using your own key, and Strava import reads activities from your Strava account.</p></div>
         </details>
         <details>
           <summary>Does it work with an Excel file?</summary>
@@ -1521,7 +1521,7 @@
         </label>
         <p class="auto-error" id="autoFormError" hidden></p>
         <button class="btn btn-primary" id="autoContinueBtn" type="button">Continue with Google</button>
-        <p class="auto-fine">Nothing leaves your own Google account &mdash; this only creates a new script project there and writes Scanva's code into it. You'll see Google's own sign-in and consent screen before anything happens.</p>
+        <p class="auto-fine">This only creates a new script project in your own Google account and writes Scanva's code into it. You'll see Google's own sign-in and consent screen before anything happens.</p>
       </div>
 
       <div class="auto-screen" id="auto-screen-progress" hidden>
