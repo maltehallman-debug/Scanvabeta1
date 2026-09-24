@@ -71,6 +71,8 @@
       --safe-b: env(safe-area-inset-bottom, 0px);
     }
     [hidden] { display: none !important; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .activity-card:focus-visible, .month-day:focus-visible { outline-offset: 3px; border-radius: 20px; }
     [hidden] { display: none !important; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
@@ -884,7 +886,7 @@
         <div class="avatar-fallback" id="avatarFallback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div>
         <span class="avatar-edit-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg></span>
       </button>
-      <div class="header-name" id="headerNameBtn">
+      <div class="header-name" id="headerNameBtn" role="button" tabindex="0" aria-label="Edit profile">
         <h1 id="profileName">Training Diary</h1>
         <div class="sub" id="profileSub">Tap here to set your name &amp; picture</div>
       </div>
@@ -1814,7 +1816,7 @@
             inner = '<span class="daynum-big">' + d + '</span>';
           }
           cells += '<div class="month-day' + (act ? ' has-activity' : '') + (isToday ? ' today-cell' : '') +
-            '"' + (act ? ' data-row="' + act.row + '"' : '') + '>' + inner + '</div>';
+            '"' + (act ? ' data-row="' + act.row + '" role="button" tabindex="0" aria-label="' + escapeHtml((act.pass1 || act.pass2 || 'Activity') + ', ' + d + ' ' + MONTHS[monthIdx]) + '"' : '') + '>' + inner + '</div>';
         }
 
         return '<div class="month-grid">' +
@@ -1847,7 +1849,7 @@
       var monthName = d ? MONTHS_SHORT[d.getMonth()] : '';
       var title = p.pass1 || p.pass2 || 'Planned session';
       return '' +
-        '<div class="activity-card planned-card" data-plan-row="' + p.row + '" style="border-left-color:#ff5b1f">' +
+        '<div class="activity-card planned-card" role="button" tabindex="0" aria-label="' + escapeHtml('Planned: ' + title + (d ? ', ' + dayNum + ' ' + monthName : '')) + '" data-plan-row="' + p.row + '" style="border-left-color:#ff5b1f">' +
         '<div class="date-badge"><div class="d">' + dayNum + '</div><div class="m">' + monthName + '</div></div>' +
         '<div class="activity-body">' +
         '<div class="top-row"><div class="pass-name">' + escapeHtml(title) + '</div>' +
@@ -1906,7 +1908,7 @@
       var routeSvg = routeSparkSvg(a.polyline1 || a.polyline2 || '');
 
       return '' +
-        '<div class="activity-card" data-row="' + a.row + '" style="border-left-color:' + mainColor + '">' +
+        '<div class="activity-card" role="button" tabindex="0" aria-label="' + escapeHtml(title + (d ? ', ' + dayNum + ' ' + monthName : '')) + '" data-row="' + a.row + '" style="border-left-color:' + mainColor + '">' +
         '<div class="date-badge"><div class="d">' + dayNum + '</div><div class="m">' + monthName + '</div></div>' +
         '<div class="activity-body">' +
         '<div class="activity-main">' +
@@ -2290,8 +2292,8 @@
         var sel = d.key === selectedKey ? ' selected' : '';
         return '<div class="swatch-wrap">' +
           '<button type="button" class="swatch' + (isNone ? ' swatch-none' : '') + sel +
-          '" data-field="' + name + '" data-key="' + d.key + '" style="background:' + d.color + '"></button>' +
-          '<div class="swatch-label">' + d.label + '</div></div>';
+          '" data-field="' + name + '" data-key="' + d.key + '" aria-label="' + escapeHtml(d.label) + '" aria-pressed="' + (sel ? 'true' : 'false') + '" style="background:' + d.color + '"></button>' +
+          '<div class="swatch-label" aria-hidden="true">' + escapeHtml(d.label) + '</div></div>';
       }).join('') + '</div>';
     }
 
@@ -2300,8 +2302,8 @@
       return '<div class="swatch-row">' + list.map(function (t) {
         var sel = t.key === selectedKey ? ' selected' : '';
         return '<div class="swatch-wrap">' +
-          '<button type="button" class="type-btn' + sel + '" data-field="' + name + '" data-key="' + t.key + '">' + typeIconSvg(t.key, 22) + '</button>' +
-          '<div class="swatch-label">' + t.label + '</div></div>';
+          '<button type="button" class="type-btn' + sel + '" data-field="' + name + '" data-key="' + t.key + '" aria-label="' + escapeHtml(t.label) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' + typeIconSvg(t.key, 22) + '</button>' +
+          '<div class="swatch-label" aria-hidden="true">' + escapeHtml(t.label) + '</div></div>';
       }).join('') + '</div>';
     }
 
@@ -3350,6 +3352,26 @@
         renderLast7();
       }, 160);
     });
+
+    /* ---------- keyboard + screen readers ---------- */
+    // Anything drawn as role="button" (cards, calendar days, profile header)
+    // activates with Enter or Space, like a real button.
+    document.addEventListener('keydown', function (e) {
+      var el = e.target;
+      if (!el || !el.getAttribute || el.getAttribute('role') !== 'button' || el.tagName === 'BUTTON') return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+    });
+    // Keep aria-pressed in step with the visual "selected" state of the
+    // intensity and activity-type buttons in the edit sheet.
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        var el = m.target;
+        if (el.classList && (el.classList.contains('swatch') || el.classList.contains('type-btn'))) {
+          el.setAttribute('aria-pressed', el.classList.contains('selected') ? 'true' : 'false');
+        }
+      });
+    }).observe(document.getElementById('sheet'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+
 
     renderHomeHeader();
     load(false);
