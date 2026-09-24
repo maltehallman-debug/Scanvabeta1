@@ -1699,7 +1699,6 @@
 })();
 </script>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 (function () {
   // ====== FILL IN THESE TWO VALUES, THEN THIS BUTTON WORKS ======
@@ -1906,7 +1905,36 @@
   scrim.addEventListener('click', function (e) { if (e.target === scrim) closeAuto(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && scrim.classList.contains('show')) closeAuto(); });
 
-  document.getElementById('openModalBtn').addEventListener('click', function () { openAuto('free'); });
+  // Google's sign-in library is only fetched once someone actually opens
+  // Quick install, so ordinary visits never contact accounts.google.com.
+  function loadGsi(cb) {
+    if (window.google && window.google.accounts && window.google.accounts.oauth2) return cb();
+    var s = document.getElementById('gsiScript');
+    if (s && s.getAttribute('data-done')) return cb();
+    if (!s) {
+      s = document.createElement('script');
+      s.id = 'gsiScript'; s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      document.head.appendChild(s);
+    }
+    var finished = false;
+    function finish() { if (finished) return; finished = true; s.setAttribute('data-done', '1'); cb(); }
+    s.addEventListener('load', finish); s.addEventListener('error', finish);
+    setTimeout(finish, 20000);
+  }
+  document.getElementById('openModalBtn').addEventListener('click', function () {
+    openAuto('free');
+    if (isAutoSetupAvailable()) return;
+    // Show the form right away; Continue unlocks once the library arrives.
+    showScreen('form');
+    var label = continueBtn.textContent;
+    continueBtn.disabled = true;
+    continueBtn.textContent = 'Loading Google sign-in…';
+    loadGsi(function () {
+      continueBtn.disabled = false;
+      continueBtn.textContent = label;
+      if (!isAutoSetupAvailable()) showScreen('unavailable');
+    });
+  });
 })();
 </script>
 
