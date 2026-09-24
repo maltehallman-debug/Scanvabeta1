@@ -1826,7 +1826,7 @@
       }).join('');
 
       el.innerHTML = '<div class="chart-top"><div class="title">Month overview</div></div>' +
-        '<div class="month-scroll" id="monthScroll"><div class="month-track">' + grids + '</div></div>' +
+        '<div class="month-scroll" id="monthScroll" tabindex="0" role="region" aria-label="Month calendar, scroll sideways for other months"><div class="month-track">' + grids + '</div></div>' +
         (monthKeys.length > 1 ? '<div class="scroll-hint">&larr; &rarr; swipe between months</div>' : '');
 
       var scrollEl = document.getElementById('monthScroll');
