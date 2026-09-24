@@ -482,7 +482,8 @@
   .foot { border-top: 1px solid var(--hair); padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); }
   .foot-row { display: flex; flex-wrap: wrap; gap: 24px 40px; align-items: flex-start; justify-content: space-between; }
   .foot-note { max-width: 42em; font-size: 13.5px; color: var(--text-3); line-height: 1.6; margin: 14px 0 0; }
-  .foot-links { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 12px 24px; list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .foot-contact a { color: var(--text-2); text-underline-offset: 3px; }
   .foot-links a, .foot-links button { color: var(--text-2); text-decoration: none; background: none; border: none; font: inherit; padding: 0; cursor: pointer; }
   @media (hover: hover) and (pointer: fine) { .foot-links a:hover, .foot-links button:hover { color: var(--text); } }
 
@@ -953,11 +954,13 @@
           Scanva
         </a>
         <p class="foot-note">The free build's AI tab (daily tip, 7-day plan, chat) shows as a locked preview. Everything else (diary, planning, calendar and weekly stats) works fully on both builds.</p>
+        <p class="foot-note foot-contact">Made by Malte Hallman &middot; <a href="mailto:malte.hallman@gmail.com">malte.hallman@gmail.com</a></p>
       </div>
       <ul class="foot-links">
         <li><a href="demo.html" target="_blank" rel="noopener">Live demo</a></li>
         <li><a href="https://payhip.com/b/UcQKA" target="_blank" rel="noopener">Template</a></li>
         <li><button type="button" data-open="manual">Manual setup</button></li>
+        <li><a href="privacy.html">Privacy</a></li>
       </ul>
     </div>
   </div>
@@ -1521,7 +1524,7 @@
         </label>
         <p class="auto-error" id="autoFormError" hidden></p>
         <button class="btn btn-primary" id="autoContinueBtn" type="button">Continue with Google</button>
-        <p class="auto-fine">This only creates a new script project in your own Google account and writes Scanva's code into it. You'll see Google's own sign-in and consent screen before anything happens.</p>
+        <p class="auto-fine">This only creates a new script project in your own Google account and writes Scanva's code into it. You'll see Google's own sign-in and consent screen before anything happens. <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
       </div>
 
       <div class="auto-screen" id="auto-screen-progress" hidden>

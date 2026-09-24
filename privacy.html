@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0c0b">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Privacy · Scanva</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0c0b'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23ff5b1f' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23ff5b1f'/%3E%3C/svg%3E">
+<style>
+  @font-face { font-family: 'Geist'; font-style: normal; font-weight: 100 900; font-display: swap; src: url(fonts/Geist-latin.woff2) format('woff2'); }
+  @font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 100 900; font-display: swap; src: url(fonts/GeistMono-latin.woff2) format('woff2'); }
+  :root { --bg: #0b0c0b; --surface: #131513; --hair: rgba(255,255,255,0.09); --text: #f3f2ed; --text-2: #a3a69e; --text-3: #8b8f86; --accent: #ff5b1f; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; padding-inline: 20px; padding-block: 40px 64px; }
+  main { max-width: 720px; margin: 0 auto; }
+  a { color: var(--text); text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .back { display: inline-flex; gap: 8px; align-items: center; color: var(--text-2); text-decoration: none; font-size: 14px; }
+  .draft { margin: 24px 0; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255,91,31,0.45); background: rgba(255,91,31,0.08); color: #ffb999; font-size: 14px; }
+  h1 { font-size: clamp(34px, 6vw, 48px); letter-spacing: -0.04em; line-height: 1.05; margin: 8px 0 6px; font-weight: 600; }
+  h2 { font-size: 21px; letter-spacing: -0.02em; margin: 36px 0 8px; font-weight: 600; }
+  p, li { color: var(--text-2); }
+  strong { color: var(--text); font-weight: 600; }
+  .meta { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--hair); border-radius: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--hair); color: var(--text-2); }
+  th { color: var(--text); font-weight: 600; background: var(--surface); }
+  tr:last-child td { border-bottom: none; }
+  code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.88em; color: var(--text); }
+  .todo { color: #ffb999; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">&larr; Back to Scanva</a>
+  <div class="draft" role="note"><strong>Draft for review.</strong> This page describes what the Scanva website and app actually do, based on a code review. It has not been checked by a lawyer and is not legal advice.</div>
+  <p class="meta">Last updated 24 September 2026</p>
+  <h1>Privacy</h1>
+  <p>Scanva is a training diary that runs as a Google Apps Script project inside your own Google account and reads and writes your own spreadsheet. This page explains what happens to your data on this website, in the live demo, during Quick install, and in the app once it's installed.</p>
+
+  <h2>Who is responsible</h2>
+  <p>Scanva is made by <strong>Malte Hallman</strong>. Contact: <a href="mailto:malte.hallman@gmail.com">malte.hallman@gmail.com</a>.</p>
+  <p>For this website, Malte Hallman is the data controller. Once you install the app, it runs in <em>your</em> Google account and works on <em>your</em> spreadsheet: that data is yours and Scanva has no access to it.</p>
+
+  <h2>When you visit this website</h2>
+  <p>The website is a set of static pages hosted on <strong>GitHub Pages</strong>. Like any web host, GitHub receives your IP address and browser details to deliver the pages and may keep them in its server logs. See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub's privacy statement</a>.</p>
+  <p>Fonts are served from this website itself, not from a third party. The site has no analytics, advertising, tracking pixels or social widgets, and sets <strong>no cookies</strong> and nothing in your browser's storage.</p>
+
+  <h2>The live demo</h2>
+  <p>The demo generates a fictional athlete in your browser. Nothing you enter in the demo is sent anywhere or saved; it's gone when you reload. The demo loads the Leaflet map library from <strong>cdnjs</strong> (Cloudflare), which receives your IP address when it's downloaded.</p>
+
+  <h2>Quick install</h2>
+  <p>Google's sign-in library is loaded from <strong>accounts.google.com</strong> only when you open Quick install. When you choose <em>Continue with Google</em>, Google asks for permission to create and deploy an Apps Script project (<code>script.projects</code> and <code>script.deployments</code>).</p>
+  <ul>
+    <li>The access token Google gives your browser is kept in the page's memory only and used to call Google's Apps Script API directly from your browser. It is never sent to Scanva or stored.</li>
+    <li>The spreadsheet link you paste is only used to write your file's ID into the new project's code.</li>
+    <li>The new project is created in your Google account and deployed so that only you can open it.</li>
+  </ul>
+
+  <h2>The installed app</h2>
+  <p>After installation the app runs entirely within your Google account, and you are responsible for the data in it. Here is what it stores and where it sends data:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>What</th><th>Where it goes</th></tr></thead>
+      <tbody>
+        <tr><td>Your training diary: sessions, comments, times, distances, intensity, plans</td><td>Your own Google Sheet or <code>.xlsx</code> file</td></tr>
+        <tr><td>Profile name, subtitle and picture; goal times; cached AI answers</td><td>Script Properties of your own Apps Script project</td></tr>
+        <tr><td>Map background when you view a Strava route</td><td>Map tiles are loaded from <strong>OpenStreetMap</strong>, which receives your IP address</td></tr>
+        <tr><td>Map library (Leaflet)</td><td>Loaded from <strong>cdnjs</strong> (Cloudflare), which receives your IP address</td></tr>
+        <tr><td><strong>Pro only:</strong> your last ~14 days of training, the next 7 days of plans, weekly volume for 10 weeks, goal times and any chat questions</td><td>Sent to <strong>Google's Gemini API</strong> with the API key you add. How Google uses that data depends on your key's account and plan; see <a href="https://ai.google.dev/gemini-api/terms" rel="noopener">Gemini API terms</a>.</td></tr>
+        <tr><td><strong>Pro only:</strong> Strava activities you import (name, time, distance, route) and your Strava login token</td><td>Read from <strong>Strava</strong>; written into your sheet; the token is kept in your project's user properties</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Buying the template</h2>
+  <p>The spreadsheet template is sold on <strong>Payhip</strong>. When you buy it, you give your details to Payhip and its payment providers under Payhip's own privacy policy. <span class="todo">TODO(owner): add the link to Payhip's privacy policy, and confirm which order details Payhip shares with you as the seller and how long you keep them.</span></p>
+
+  <h2>Legal basis and transfers</h2>
+  <p><span class="todo">TODO(owner): confirm the legal basis for GitHub Pages' server logs (usually legitimate interest, GDPR Art. 6(1)(f)), and describe transfers to the US (GitHub, Google, Cloudflare, Payhip), e.g. under the EU–US Data Privacy Framework.</span></p>
+
+  <h2>Your rights</h2>
+  <p>You have the right to ask for access to, correction of or deletion of personal data about you, and to object to processing. Email <a href="mailto:malte.hallman@gmail.com">malte.hallman@gmail.com</a>. Scanva itself doesn't hold data about you, so most requests will be about GitHub, Google, Strava or Payhip, and we'll point you to the right place.</p>
+  <p>You can also complain to the Swedish Authority for Privacy Protection (<a href="https://www.imy.se/" rel="noopener">IMY</a>).</p>
+
+  <h2>Changes</h2>
+  <p>If the site or app changes what it does with data, this page will be updated and the date above changed.</p>
+</main>
+</body>
+</html>
