@@ -70,7 +70,7 @@
 - Needs verification before the fix: the app must still open when the owner is signed in on iPhone Safari. The `doGet` comment says sign-in works in a normal Safari tab.
 
 **S2. OAuth app publishing status: Needs verification**
-- `index.html:1856` tells users that failures may be because "this Google account is listed as a test user", which suggests the consent screen is in **Testing**.
+- `index.html:1884` tells users that failures may be because "this Google account is listed as a test user", which suggests the consent screen is in **Testing**.
 - In Testing, only up to 100 listed test users can finish Quick install, and tokens expire after 7 days.
 - Publishing with the `script.projects` / `script.deployments` scopes likely requires Google verification: a privacy policy URL (see L2), a homepage, and authorized domains the owner controls.
 - `github.io` probably can't be used as an authorized domain, so a custom domain may be needed.
@@ -124,7 +124,7 @@
 - **Cookies set by our own code:** none. There's no `document.cookie`, `localStorage` or `sessionStorage` in the site, demo or app (grep: 0 hits).
 - The GSI client may set Google cookies. Needs verification in a browser with a clean profile.
 - **P1 Google Fonts: Medium.** Loaded from `fonts.googleapis.com`/`fonts.gstatic.com` in `index.html`, `demo.html` and the app. **Fix:** self-host Geist and Geist Mono (OFL licence). For the site, add the `.woff2` files to the repo. For the app, Apps Script can't serve binaries, so inline the fonts as base64 `@font-face` or fall back to system fonts.
-- **P2 GSI script before any click: Medium.** `<script src="https://accounts.google.com/gsi/client" async defer>` near the end of `index.html`. **Fix:** load it only when the user clicks Quick install (the code already checks `isAutoSetupAvailable()`).
+- **P2 GSI script before any click: Medium.** `<script src="https://accounts.google.com/gsi/client" async defer>` at `index.html:1697`. **Fix:** load it only when the user clicks Quick install (the code already checks `isAutoSetupAvailable()`).
 - **Consent banner:** not needed today, since there are no analytics, trackers or pixels (verified: no hosts other than those listed). After P1 and P2 are fixed there's nothing non-essential left to consent to.
 - **Forms:** only the Quick install sheet-link field. No pre-ticked boxes. The fine print says "Nothing leaves your own Google account" (see L1). No link to a privacy policy (see L2).
 - **Privacy policy (L2): High, missing.**
@@ -134,9 +134,9 @@
 ### Legal & trust
 
 - **L1 misleading privacy claim: High.** Three lines:
-  - Hero, `index.html` ~line 47: "…so your data never leaves your own Google account."
-  - FAQ: "nothing is copied anywhere else."
-  - Auto-setup fine print: "Nothing leaves your own Google account."
+  - Hero, `index.html:634`: "…so your data never leaves your own Google account."
+  - FAQ, `index.html:909`: "nothing is copied anywhere else."
+  - Auto-setup fine print, `index.html:1524`: "Nothing leaves your own Google account."
 
   Pro sends training history to the Gemini API, and depending on the key's account and tier, Google may use it to improve its products. Pro also imports from Strava. This is a false statement under marknadsföringslagen 10 § and a GDPR transparency (Art. 13) problem. **Fix:** reword to what's true, e.g. "Your diary stays in your own Google account. Pro's AI features send your recent training to Google's Gemini API using your own key."
 - **L2 privacy policy: High.** Draft a page listing exactly the inventory above, with the controller identity as `TODO(owner)`. Mark it clearly as a draft that isn't legal advice.
