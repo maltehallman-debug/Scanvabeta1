@@ -134,6 +134,9 @@
   .arrow { transition: transform 200ms var(--ease-out); }
   @media (hover: hover) and (pointer: fine) { .btn:hover .arrow { transform: translateX(3px); } }
 
+  .skip-link { position: absolute; left: 16px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 600; text-decoration: none; }
+  .skip-link:focus { top: 12px; }
+
   /* ---------- nav ---------- */
   .nav {
     position: sticky; top: 0; z-index: 40;
@@ -611,6 +614,7 @@
 </style>
 </head>
 <body>
+<a class="skip-link" href="#product">Skip to content</a>
 
 <header class="nav" id="nav">
   <div class="container nav-inner">
