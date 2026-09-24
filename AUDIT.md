@@ -1,8 +1,92 @@
 # Scanva: pre-launch audit
 
-**Phase 1 (read-only).** No code was changed. Written 2026-09-24 on branch `audit/pre-launch`, starting from `claude/friendly-wozniak-or7i5l` @ `9faf8f6`.
+**Phase 1 (read-only)** was written 2026-09-24 on branch `audit/pre-launch`, starting from `claude/friendly-wozniak-or7i5l` @ `9faf8f6`. **Phases 2 and 3 (fixes + verification)** were done the same day after owner approval. Results come first; the original Phase 1 findings follow unchanged.
 
 > Legal items below are observations to discuss with the owner. They are not legal advice.
+
+## Phase 2 and 3 results
+
+Owner decisions:
+- **S1** "Only myself": approved.
+- **A6** phone scale: keep 0.7×.
+- **Contact:** show only "Malte Hallman" + email.
+- **App fonts:** the other choices were left to me. I embedded Geist in the app instead of switching to system fonts. It's 52 KB of font (≈70 KB as base64), so there are no third-party font requests and the look is unchanged.
+
+### What was fixed
+
+| ID | Sev. | Fix | Commit |
+|---|---|---|---|
+| S1 | High | Quick install deploys with `access: 'MYSELF'`; both manual wizards say "Execute as: Me / Who has access: Only myself" | `6cd88cb` |
+| L1 | High | Hero, FAQ and Quick-install fine print describe what really happens; the Pro card says AI sends training data to Gemini | `d0d6be3` |
+| L2 | High | `privacy.html` (DRAFT, not legal advice), matching the code; linked from the footer and from Quick install | `2ca6474` |
+| L3 | High | Footer: "Made by Malte Hallman · malte.hallman@gmail.com" | `2ca6474` |
+| A1/A2 | High | Cards, calendar days and the profile header are keyboard-operable buttons with labels; sheet type/intensity buttons have `aria-label` + `aria-pressed` | `a324c7e` |
+| P1 | Medium | Fonts self-hosted: site loads `fonts/` (OFL files included); app and demo embed the fonts | `e4cd3bc` |
+| P2 | Medium | Google sign-in library loads only when Quick install is opened (no Google requests before that; verified) | `96a26e5` |
+| L4 | Medium | `terms.html` (DRAFT): seller, free vs template, 14-day withdrawal rules, ARN; open decisions are TODO(owner) | `dc99b84` |
+| L5 | Medium | "© OpenStreetMap contributors" on the route map | `fc7f8f4` |
+| L6 | Medium | Strava look-alike glyph removed from the Strava buttons | `114bfa3` |
+| S3 | Medium | `XFrameOptionsMode.ALLOWALL` removed from `Code.gs` (free + Pro, and the owner's personal build) | `5acc994` |
+| A3 | Medium | Faint text `#6b6f67` → `#8b8f86` (≥ 4.54:1 on every surface) | `f044148` |
+| A4 | Medium | App sheets and site modals are `role=dialog`/`aria-modal`, named, focus moves in/out, Tab trapped, Esc closes | `5f56552` |
+| A5 | Medium | Every sheet field labelled via `aria-labelledby`; button rows are labelled groups | `39170ff` |
+| S4 | Low | `<meta>` CSP + `referrer` on `index.html`, `demo.html`, `privacy.html`, `terms.html` | `ad0d94c` |
+| S5 | Low | SRI (sha512, cross-checked) on Leaflet JS/CSS | `0d0ec2c` |
+| S6 | Low | All remaining HTML interpolations escaped | `a324c7e`, `c057d2d` |
+| P3 | Low | Fake file ID in the wizard illustration | `8e19533` |
+| L7 | Low | "Illustrations below use example data" above the feature grid | `266a839` |
+| A7 | Low | Month scroller focusable, `role=region`, labelled | `701ea62` |
+| A8 | Low | "Skip to content" link | `46705ec` |
+| (new) | Low | Found during re-verification: the free build's blurred AI preview is now `aria-hidden` + `inert` | `24a6ebb` |
+
+### Verification (Phase 3)
+
+The repo has no build, lint, type-check or test tooling (no `package.json` or config), so there was nothing of that kind to run. Instead:
+
+- **JS syntax:** `node --check` on every inline `<script>` in `index.html` (4), `demo.html` (3), the free and Pro app (2 each), and on both `Code.gs` builds. **All pass.**
+- **Embedded sources:** the four base64 blocks in `index.html` decode byte-for-byte to the built `Code.gs`/`Index.html` (free + Pro). **Match.**
+- **Leftover check** (grep across site, demo and decoded app): 0 hits each for `never leaves`, `nothing is copied anywhere`, `Nothing leaves your own`, `access: 'ANYONE'`, `fonts.googleapis`, the GSI `<script>` tag, `1yyyZOZodL4o`, `ALLOWALL`, `#6b6f67`.
+- **Secret scan:** re-run over all 59 unique file versions in all commits, including decoded embedded files. Hits are only the intended public values: `malte.hallman@gmail.com`, the OAuth client ID, and placeholder `SHEET_ID`s. **Nothing to rotate.**
+- **Accessibility:** axe-core 4.13.0, WCAG 2.0/2.1 A+AA, reduced motion, 8 states (site desktop/phone/wizard; demo Home, Progress, Activities, AI, edit sheet): **0 violations**. Keyboard runs in Playwright:
+  - Enter opens an activity.
+  - 60 × Tab stays inside the sheet.
+  - Esc closes it and returns focus to the card.
+  - The site wizard traps focus and returns it to "Set it up manually".
+- **CSP:** no violations in Chromium on all four pages. Google sign-in loads under the policy on Quick install, and Leaflet loads in the demo.
+- **Smoke test** (demo, touch emulation): all 5 tabs, week-strip tap, FAB, swipe-to-dismiss, sport filter, heat-map and record taps. **No JS errors.**
+- **Not verifiable here (needs a real Google account on the live site):**
+  - The full Quick install flow end-to-end (sign-in → create → deploy) under the new CSP and with `access: 'MYSELF'`.
+  - Opening a "Only myself" deployment on iPhone Safari.
+
+### Still open
+
+**Owner actions (TODO(owner))**
+1. **S2 Google OAuth consent screen:** check the publishing status. If it's in *Testing*, only listed test users can use Quick install. To publish:
+   - add the privacy page URL (`…/privacy.html`) and a homepage;
+   - submit the `script.projects`/`script.deployments` scopes for verification;
+   - check that `github.io` is accepted as an authorized domain (a custom domain may be needed).
+
+   Also confirm *Authorized JavaScript origins* lists only `https://maltehallman-debug.github.io`.
+2. **Test Quick install once on the live site** after merging (see "Not verifiable here").
+3. **Legal drafts** (`privacy.html`, `terms.html`) need your review. Open TODOs in them:
+   - legal basis for GitHub's logs, and US transfers (GitHub, Google, Cloudflare, Payhip);
+   - Payhip privacy link, seller of record, and whether checkout collects the digital-content withdrawal consent;
+   - code licence and warranty/liability position;
+   - governing law and ARN participation.
+4. **Seller details:** the site shows only your name and email, as you asked. If the template is sold as a business, Swedish e-commerce and distance-selling rules also require a **geographic address** (and org. no. for a registered firm). This is flagged in `terms.html`.
+5. **L6:** if you want a Strava mark on the buttons, use Strava's official "Connect with Strava"/"Powered by Strava" assets.
+6. **L8** "Free forever": keep it only if you're committing to it.
+7. **L9 EAA:** confirm whether the microenterprise exemption applies.
+8. **Roll-out to existing installs:** fixes to the app (S1 only for new deployments; S3, A-items, fonts, OSM) reach people only when they re-paste `Code.gs`/`Index.html` or re-run Quick install. Existing Quick-install deployments are still "Anyone": owners should open **Deploy → Manage deployments → Edit → Who has access: Only myself**. Your personal build was updated separately (`Code.gs` without ALLOWALL; new `Index.html`).
+9. **Release path:** GitHub Pages serves `claude/friendly-wozniak-or7i5l`. Merge `audit/pre-launch` into it (or point Pages at `main` after merging there) to go live.
+
+**Accepted / not changed**
+- **A6** phone scale 0.7× (owner decision). Pinch-zoom still works.
+- **S4 limits:** `frame-ancestors`/X-Frame-Options can't be set on GitHub Pages. That needs a proxy or another host.
+
+---
+
+# Phase 1 findings (as written before the fixes)
 
 ## What the project is (detected)
 
@@ -145,7 +229,7 @@
   - Required by lagen om elektronisk handel (2002:562) 8 §, and distansavtalslagen 2 kap. 2 § for the sale itself.
   - I won't invent any of these. **Fix:** add a footer "Contact / Company" block of `TODO(owner):` placeholders.
 - **L4 terms and withdrawal: Medium.**
-  - A digital download sold to consumers has a 14-day right of withdrawal. It's lost only if the buyer expressly consents to immediate delivery and acknowledges losing the right (distansavtalslagen 2 kap. 11 § 13).
+  - A digital download sold to consumers has a 14-day right of withdrawal. It's lost only if the buyer expressly consents to immediate delivery and acknowledges losing the right (distansavtalslagen 2 kap. 11 §; the exact point number needs verification).
   - Needs verification: whether Payhip's checkout collects that consent and whether Payhip or the owner is the seller of record.
   - **Fix:** draft terms and withdrawal text as `TODO(owner)` drafts. No refund promises get invented.
 - **L5 OpenStreetMap attribution: Medium.** App: `L.tileLayer('https://{s}.tile.openstreetmap.org/…', { maxZoom: 18 })` has no `attribution`. **Fix:** add `attribution: '© OpenStreetMap contributors'`. Also note the OSM tile usage policy (fine at this volume; set a proper `Referer`).
