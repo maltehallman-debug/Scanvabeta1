@@ -692,6 +692,7 @@
       border-radius: 28px 28px 0 0; padding: 8px 18px calc(24px + var(--safe-b));
       border-top: 1px solid var(--line-strong); box-shadow: 0 -20px 50px rgba(0,0,0,0.5);
     }
+    .sheet:focus { outline: none; }
     .sheet-handle { width: 38px; height: 5px; background: var(--card-3); border-radius: 5px; margin: 0 auto 16px; }
     .sheet h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.035em; margin: 0 0 4px; }
     .sheet .sheet-sub { font-size: 14.5px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.45; }
@@ -1011,7 +1012,7 @@
   </nav>
 
   <div class="overlay" id="overlay">
-    <div class="sheet" id="sheet"></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"></div>
   </div>
   <div class="toast" id="toast"></div>
 </div>
@@ -2580,6 +2581,7 @@
         ov.classList.remove('show', 'closing');
         ov.style.background = '';
         document.getElementById('sheet').style.transform = '';
+        restoreSheetFocus();
       }, 220);
     }
 
@@ -3285,8 +3287,16 @@
 
     /* ---------- sheet: animated close + swipe down to dismiss ---------- */
     var SHEET_CLOSE_TIMER = null;
+    var SHEET_RETURN_FOCUS = null;
     function openOverlay() {
       var ov = document.getElementById('overlay');
+      var sheetEl = document.getElementById('sheet');
+      if (!ov.classList.contains('show')) SHEET_RETURN_FOCUS = document.activeElement;
+      // Name the dialog after its heading, and move keyboard focus into it.
+      var heading = sheetEl.querySelector('h2');
+      if (heading) { heading.id = heading.id || 'sheetTitle'; sheetEl.setAttribute('aria-labelledby', heading.id); }
+      else sheetEl.removeAttribute('aria-labelledby');
+      setTimeout(function () { if (ov.classList.contains('show')) sheetEl.focus({ preventScroll: true }); }, 30);
       clearTimeout(SHEET_CLOSE_TIMER);
       ov.classList.remove('closing');
       document.getElementById('sheet').style.transform = '';
@@ -3367,6 +3377,26 @@
         }
       });
     }).observe(document.getElementById('sheet'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+    /* ---------- dialogs: Esc closes, Tab stays inside, focus returns ---------- */
+    function restoreSheetFocus() {
+      var el = SHEET_RETURN_FOCUS;
+      SHEET_RETURN_FOCUS = null;
+      if (el && el.focus && document.body.contains(el)) el.focus({ preventScroll: true });
+    }
+    document.addEventListener('keydown', function (e) {
+      var ov = document.getElementById('overlay');
+      if (!ov.classList.contains('show') || ov.classList.contains('closing')) return;
+      if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
+      if (e.key !== 'Tab') return;
+      var sheetEl = document.getElementById('sheet');
+      var f = Array.prototype.filter.call(sheetEl.querySelectorAll('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'),
+        function (el) { return !el.disabled && el.offsetParent !== null; });
+      if (!f.length) { e.preventDefault(); sheetEl.focus(); return; }
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === sheetEl)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
 
 
     renderHomeHeader();
