@@ -86,6 +86,16 @@ The repo has no build, lint, type-check or test tooling (no `package.json` or co
 
 ---
 
+### Update 2026-09-25: owner confirms nothing is sold
+
+The owner confirmed Scanva sells nothing; the "Get the template" link points to an external Payhip page. The TODOs in `privacy.html` and `terms.html` were removed accordingly:
+- **Privacy:** the Payhip section now says Scanva receives no data from Payhip. Legal basis (Art. 6(1)(f) for GitHub's hosting logs) and US transfers are now stated.
+- **Terms:** rewritten for a free, non-commercial service. There's no seller or withdrawal section, since there's no sale.
+
+Owner TODOs 3–4 (seller details, Payhip consent, withdrawal) no longer apply. If the template is ever sold by you, restore seller details and withdrawal information.
+
+---
+
 # Phase 1 findings (as written before the fixes)
 
 ## What the project is (detected)
