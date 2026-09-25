@@ -305,3 +305,6 @@ Tool: axe-core 4.13.0 run through Playwright/Chromium (WCAG 2.0/2.1 A+AA rules) 
 2. **P1 in the app:** system fonts (simplest, no network) or inline base64 Geist (~120 KB extra per load)?
 3. **A6:** keep 0.7× or go to 0.8×?
 4. Business details for L3/L4: provide them now or leave TODO(owner) placeholders?
+
+### Update 2026-09-25: template link removed
+The Payhip template page (`payhip.com/b/UcQKA`) returns 404. The "Haven't got a sheet yet? / Get the template" banner and the footer "Template" link were removed, along with the Payhip sections in `privacy.html` and `terms.html`. The site now links to no Payhip page (verified: `grep -ci payhip index.html privacy.html terms.html` → 0).
